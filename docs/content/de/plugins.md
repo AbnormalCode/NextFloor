@@ -142,3 +142,15 @@ A complete example with all three: [`docs/examples/nextfloor-plugin-example.js`]
 The API version only changes when something breaks existing plugins; new optional fields can come
 in any release. A plugin written for another API version is refused with a message on the
 Extensions page instead of half-working.
+
+## Textur-Anbieter
+
+Die optionale Liste `textures` erweitert API-Version 1 um Video-, Canvas- und Bildtexturen für benannte Möbeloberflächen. Jeder Anbieter hat `match(context)` und `create(context)`. `create` liefert synchron `{ source, unlit?, update?, dispose }`; `source` ist ein HTML-Video-, Canvas- oder Bildelement. `unlit` ist standardmäßig wahr. `update` erhält neue HA-Zustände, ohne die Quelle neu anzulegen. `dispose` beendet Verbindungen, Medien-Tracks, Timer und Ereignisbehandlung. Three.js wird vom Plugin nicht benötigt.
+
+Der Kontext enthält `hass`, `floorId`, `furnitureId`, `furnitureType`, `surface`, `entityId` und `state`. Bei `create` kommen `invalidate()` (Canvas/Bild neu zeichnen) und `reportError(error)` hinzu. Videoframes lösen das Zeichnen automatisch aus. Der erste passende Anbieter gewinnt; `match` kann pro Frame aufgerufen werden und muss schnell und nebenwirkungsfrei bleiben.
+
+Bestehende Anzeigen bieten `screen`, Bilderrahmen `picture`. Ein unbewegter Quader eines Möbelpakets kann mit `"texture": "art"` seine Vorderseite (+z) benennen. Diese Textur ist unabhängig von einem Bildschirm oder Mediaplayer. `screen` und `picture` sind reserviert. Namen pro Möbelstück eindeutig wählen. Gekrümmte/bewegte Teile und beliebige UV-Materialien importierter Modelle werden zunächst nicht unterstützt.
+
+Beim Verbergen der Etage, des Browser-Tabs oder der Karte, beim Dimmen sowie beim Entfernen wird aufgeräumt; beim Wiederanzeigen wird die Quelle neu angelegt. Verdeckung durch andere Möbel und Sichtkegel der Kamera werden nicht geprüft. Zeitreise deaktiviert Plugin-Texturen.
+
+Ein eigenständiges go2rtc-Beispiel liegt unter `docs/examples/nextfloor-go2rtc-texture.js`. Nach `/config/www/nextfloor/` kopieren, `SOURCES` mit Mediaplayer-Entität, erreichbarer go2rtc-Basis-URL und Streamname ausfüllen und unter Erweiterungen → Plugins hinzufügen. HTTPS-HA benötigt HTTPS/WSS für die Signalisierung; WebRTC-Kandidaten müssen erreichbar sein. Das Beispiel empfängt nur stummes Video und verbindet nach Fehlern erneut. Keine Zugangsdaten in `/local`-Dateien speichern: Diese sind öffentlich abrufbar. Vollständiger Vertrag und Canvas-Beispiel stehen auf der englischen Plugin-Seite.

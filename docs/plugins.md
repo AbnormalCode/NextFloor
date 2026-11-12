@@ -137,3 +137,46 @@ A complete example with all three: [`docs/examples/nextfloor-plugin-example.js`]
 The API version only changes when something breaks existing plugins; new optional fields can come
 in any release. A plugin written for another API version is refused with a message on the
 Extensions page instead of half-working.
+
+## Texture providers
+
+An optional `textures` array extends API version 1 without importing Three.js. A provider supplies an HTML video, canvas or image element for a **named furniture surface**, independent of media-player behaviour. This extension requires a NextFloor build containing texture providers.
+
+```js
+textures: [{
+  match: ({ furnitureId, surface }) => furnitureId === "my-frame" && surface === "picture",
+  create: ({ invalidate }) => {
+    const source = document.createElement("canvas");
+    source.width = 512;
+    source.height = 288;
+    const draw = () => {
+      const ctx = source.getContext("2d");
+      ctx.fillStyle = "#102030";
+      ctx.fillRect(0, 0, source.width, source.height);
+      ctx.fillStyle = "white";
+      ctx.font = "48px sans-serif";
+      ctx.fillText(new Date().toLocaleTimeString(), 30, 160);
+      invalidate();
+    };
+    draw();
+    const timer = setInterval(draw, 1000);
+    return { source, unlit: true, dispose: () => clearInterval(timer) };
+  },
+}],
+```
+
+`match(context)` and `update(context)` receive `hass`, `floorId`, `furnitureId`, `furnitureType`, `surface`, `entityId` (the resolved furniture entity, or null) and `state` (or undefined). The first matching provider wins. Match may run every rendered frame; keep it cheap and free of side effects. Returning false restores the normal surface. HA updates reach providers even when an entity is outside NextFloor's normal watch list.
+
+`create(context)` additionally receives `invalidate()` and `reportError(error)`. It returns synchronously with `{ source, unlit?, update?, dispose }`. Start asynchronous work internally and cancel it in `dispose`; do not return a Promise. Keep the source element and its dimensions stable for the instance's lifetime. Drawn canvas frames and loaded images need `invalidate()`; video frames automatically request rendering, with a 30 fps fallback on browsers without video-frame callbacks. Set image/video CORS attributes before loading cross-origin media. Textures stretch to the surface's aspect ratio; supply matching content or letterbox it in a canvas.
+
+`unlit` defaults to true (appropriate for a display). False uses a material affected by scene lights. `update` changes an existing instance without reconnecting its stream. `dispose` must release timers, event listeners, media tracks and connections. NextFloor owns and disposes its GPU texture, geometry and material. Synchronous plugin errors are isolated and recorded under Extensions; asynchronous work should call `reportError` and handle its own retries.
+
+Instances are recreated after provider replacement or visibility changes. A hidden floor, hidden browser tab, off-screen NextFloor card, dimmed view, removed furniture or destroyed viewer releases its resources. Camera-frustum/occlusion culling is not implemented: a surface outside the camera's view on an otherwise visible floor can still stream. Time travel disables plugin textures to avoid displaying today's live feed over historic state.
+
+### Surfaces and go2rtc
+
+Existing display furniture exposes `screen`, and photo frames expose `picture`. Custom packs can mark a stationary box part with `"texture": "art"`, making its front (+z) a named surface; no `screen` or media-player flag is required. Names `screen` and `picture` are reserved; use distinct names within each item. Mount height, resizing, mirroring and rotation are respected. Curved surfaces, moving parts and arbitrary imported-model UV materials are outside this initial API.
+
+The self-contained example `docs/examples/nextfloor-go2rtc-texture.js` uses go2rtc's WebSocket signalling and WebRTC video. Copy it to `/config/www/nextfloor/go2rtc-texture.js`, edit `SOURCES` to map your media-player entity to a browser-reachable go2rtc base URL and stream name, and add `/local/nextfloor/go2rtc-texture.js` under Extensions → Plugins. Link that entity to your TV furniture. The stream stops for off/standby/unavailable/unknown states; it is muted and reconnects with bounded backoff after failures.
+
+Use an HTTPS/WSS endpoint when HA is served over HTTPS; the browser must also reach go2rtc's advertised WebRTC candidates. A go2rtc add-on ingress URL is not automatically a reusable direct signalling endpoint. Use a browser-compatible codec (normally H.264). Do not embed passwords or tokens in the example: HA's `/local` files are publicly downloadable. Keep access authenticated through your existing proxy/network arrangement. The example requests video only and does not capture a camera or microphone.

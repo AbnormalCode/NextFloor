@@ -30,6 +30,8 @@ export interface PackPart {
   glow?: boolean;
   /** A screen: shows the colour and picture of the linked media player on its front face. */
   screen?: boolean;
+  /** Named plugin texture on a stationary box part's front (+z), independent of screens. */
+  texture?: string;
   /** A picture frame's opening: shows the item's own photo. */
   picture?: boolean;
   /** A button or socket of a switch plate (0 = the first): glows while the entity of that gang is on. */
