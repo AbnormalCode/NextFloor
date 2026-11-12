@@ -12,7 +12,7 @@ import { roomToggleLights, roomToggleMode, type RoomToggle } from "./view3d/room
 import { ownTaps } from "./view3d/own-taps.ts";
 import { lightAnimation, lightEffectSource } from "../light-effects.ts";
 import type { PlacementInfo } from "../plugins/api.ts";
-import { onPluginsChanged, pluginTap } from "../plugins/registry.ts";
+import { hasPluginTextures, onPluginsChanged, pluginTap } from "../plugins/registry.ts";
 import { alertColor, alertSources, alertText, contactsPending, findAlerts, QUIET_ALERTS, type Alert, type AlertSources } from "../alerts.ts";
 import { iconPath, iconSvg, mdiIcon } from "../icons.ts";
 import { deviceSensors, energySummary, findConsumers, powerSensorFor, readPower, subMeterIds, subMeterLabel, type Consumer, type EnergySummary } from "../energy.ts";
@@ -830,6 +830,7 @@ export class NfView3d extends LitElement {
       // without storage the choice lasts until the page reloads
     }
     if (this.viewer && this.building) this.viewer.setBuilding(this.shownBuilding(this.hass));
+    this.syncDevices(true);
     this.requestUpdate();
   }
 
@@ -867,9 +868,13 @@ export class NfView3d extends LitElement {
       force = true;
     }
     const changed = force || this.watched.some((id) => this.shownStates.get(id) !== hass.states[id]);
-    if (!changed) return;
+    if (!changed) {
+      if (hasPluginTextures()) v.setPluginTextures(hass, this.dimmed || this._travel ? null : this.shownBuilding(hass), this.furnitureLinks);
+      return;
+    }
     // a piece shown only while a helper is on (seasonal decoration) comes and goes with it
     if (hiddenFurniture(hass, b).join(",") !== this.shownFor?.key) v.setBuilding(this.shownBuilding(hass));
+    v.setPluginTextures(hass, this.dimmed || this._travel ? null : this.shownBuilding(hass), this.furnitureLinks);
     this.shownStates = new Map(this.watched.map((id) => [id, hass.states[id]]));
     this.refreshToday(b);
     this.refreshForecast(b);
