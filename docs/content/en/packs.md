@@ -81,3 +81,7 @@ The easiest way to build furniture is the **[furniture builder](https://therealm
 | `hole` | a stair: if it reaches the floor above, it cuts the stairwell opening into that floor like the built-in stair; the steps rise from the front edge (+z) to the back |
 | `light` | the piece is a lamp and is linked to a light (or switch). The value says how the light fills the room (`ceiling`, `pendant`, `floor`, `table`, `wall`, `spot`, `garden` …). Parts with `"glow": true` glow in the light's colour and brightness |
 | `screen` | a part with `"screen": true` is a display (TV, monitor); the piece can then be linked to a media player, and the front (+z) shows the running app's colour and picture like the built-in TVs |
+
+### Named texture surfaces
+
+A stationary `box` part can set `"texture": "art"` to expose its front (+z) to a plugin texture provider. Names use 1–40 lowercase letters, digits, dots, underscores or hyphens, starting with a letter or digit. Use unique names per item; `screen` and `picture` are reserved for built-in surfaces. No media-player or `screen` flag is needed. Without a matching provider the part keeps its normal material. Rotation, mirroring, mount height and resizing are supported. Moving/curved parts are rejected for this field. See the plugin guide for the provider lifecycle.

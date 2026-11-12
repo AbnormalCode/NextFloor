@@ -5,6 +5,11 @@
 // flight into it). Each floor is a group with its own materials so its height and opacity can be
 // animated independently.
 
+import { PluginTextureLayer, type TextureInput } from "./plugin-textures.ts";
+import { textureSurfaces } from "./texture-surfaces.ts";
+import { hasPluginTextures } from "../plugins/registry.ts";
+import type { HomeAssistant } from "../types.ts";
+import type { FurnitureLinks } from "../devices.ts";
 import { packModel, placement } from "./furniture/packs.ts";
 import { Builder } from "./furniture/builder.ts";
 import { advancePet, seededRandom, type PetMotion, type PetRoom } from "./pets.ts";
@@ -594,6 +599,8 @@ export class NextFloorViewer {
   private readonly waterLayer: WaterLayer;
   /** How opaque the glass walls are, shared by every floor's materials (0.2: faint glass). */
   private readonly glassAlpha = { value: 0.2 };
+  /** Plugin-provided content on named furniture surfaces. */
+  private readonly textureLayer: PluginTextureLayer;
   /** Pictures on TVs that play, with an ambilight behind (live-screens.ts). */
   private readonly screenLayer: ScreenLayer;
   /** Own photos in picture frames (live-pictures.ts). */
@@ -631,6 +638,8 @@ export class NextFloorViewer {
     this.energyLayer = new EnergyLayer(this.scene, this.liftOf);
     this.soundLayer = new SoundLayer(this.scene, this.liftOf);
     this.waterLayer = new WaterLayer(this.scene, this.liftOf);
+    this.textureLayer = new PluginTextureLayer(this.scene, this.liftOf, () => this.invalidate());
+    this.textureLayer.setEnabled(!document.hidden && this.onScreen);
     this.screenLayer = new ScreenLayer(this.scene, this.liftOf);
     this.screenLayer.onChange = () => this.invalidate();
     this.pictureLayer = new PictureLayer(this.scene, this.liftOf);
@@ -651,6 +660,7 @@ export class NextFloorViewer {
         const on = entries.some((e) => e.isIntersecting);
         if (on === this.onScreen) return;
         this.onScreen = on;
+        this.textureLayer.setEnabled(on && !document.hidden);
         if (!on) {
           clearTimeout(this.effectTimer);
           this.effectTimer = undefined;
@@ -1291,6 +1301,20 @@ export class NextFloorViewer {
     this.invalidate();
   }
 
+  /** Plugin content for named furniture surfaces, including entities outside the usual watch list. */
+  setPluginTextures(hass: HomeAssistant, building: Building | null, links: ReadonlyMap<string, FurnitureLinks>): void {
+    const inputs: TextureInput[] = [];
+    if (building && hasPluginTextures()) for (const floor of building.floors) for (const f of floor.furniture) {
+      const entityId = links.get(f.id)?.entity ?? null;
+      for (const surface of textureSurfaces(f, floor)) inputs.push({
+        key: JSON.stringify([floor.id, f.id, surface.name]), surface, x: f.x, z: f.z, rotation: f.rotation,
+        context: { hass, floorId: floor.id, furnitureId: f.id, furnitureType: f.type, surface: surface.name, entityId, state: entityId ? hass.states[entityId] : undefined },
+      });
+    }
+    this.textureLayer.set(inputs);
+    this.invalidate();
+  }
+
   /** Own photos in picture frames: the viewer finds the frame's picture part itself. */
   setPictures(list: LivePictureInput[]): void {
     const out: LivePicture[] = [];
@@ -1534,6 +1558,7 @@ export class NextFloorViewer {
     this.energyLayer.dispose();
     this.soundLayer.dispose();
     this.waterLayer.dispose();
+    this.textureLayer.dispose();
     this.screenLayer.dispose();
     this.pictureLayer.dispose();
     this.resizeObserver.disconnect();
@@ -1626,6 +1651,7 @@ export class NextFloorViewer {
   private readonly onTouch = () => this.wake();
 
   private readonly onVisibility = () => {
+    this.textureLayer.setEnabled(!document.hidden && this.onScreen);
     if (document.hidden) {
       clearTimeout(this.effectTimer);
       this.effectTimer = undefined;
@@ -3387,6 +3413,7 @@ export class NextFloorViewer {
     const roofMoving = this.placeRoof(dt);
     const robotsMoving = this.stepRobots(now);
     // NextFloor's layers: each one steps every frame (no short-circuit), any of them moving keeps the frames coming
+    this.textureLayer.step();
     this.pictureLayer.step();
     const liveMoving = [this.weatherLayer, this.energyLayer, this.soundLayer, this.screenLayer, this.waterLayer].map((l) => l.step(now));
     const weatherMoving = liveMoving.some(Boolean);

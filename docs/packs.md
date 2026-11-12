@@ -102,3 +102,7 @@ entfernen, und ein importiertes Pack darf nicht dieselbe ID haben.
 - `screen`: ein Teil mit `"screen": true` ist ein Bildschirm (Fernseher, Monitor). Das Möbel lässt sich
   dann mit einem Media Player verknüpfen; die Vorderseite (+z) zeigt die Farbe der laufenden App und
   ihr Bild, wie die eingebauten Fernseher.
+
+### Named texture surfaces
+
+A stationary `box` part can set `"texture": "art"` to expose its front (+z) to a plugin texture provider. Names use 1–40 lowercase letters, digits, dots, underscores or hyphens, starting with a letter or digit. Use unique names per item; `screen` and `picture` are reserved for built-in surfaces. No media-player or `screen` flag is needed. Without a matching provider the part keeps its normal material. Rotation, mirroring, mount height and resizing are supported. Moving/curved parts are rejected for this field. See the plugin guide for the provider lifecycle.

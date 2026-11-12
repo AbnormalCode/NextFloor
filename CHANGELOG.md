@@ -2,6 +2,12 @@
 
 All notable changes to NextFloor, newest first. Every release lists what is **Added**, **Changed** and **Fixed**. Releases: [GitHub releases](https://github.com/therealMRBK/NextFloor/releases).
 
+## [Unreleased]
+
+### Added
+
+- **Plugin texture providers:** display video, canvas drawings or images on named furniture surfaces. Existing TVs expose `screen` and frames expose `picture`; custom packs can name stationary box fronts. Providers release resources when their surface or view is hidden or removed. Includes a go2rtc WebRTC example.
+
 ## [0.31.4]
 
 ### Fixed

@@ -134,6 +134,38 @@ export interface RoomSection {
   render: (ctx: RoomSectionContext) => Node | string | null | undefined;
 }
 
+/** A named furniture surface; independent of Three.js and media-player behaviour. */
+export interface TextureContext {
+  hass: HomeAssistant;
+  furnitureId: string;
+  furnitureType: string;
+  floorId: string;
+  surface: string;
+  entityId: string | null;
+  state: HassEntity | undefined;
+}
+
+export interface TextureSource {
+  /** Keep this element stable for the lifetime of the instance. */
+  source: HTMLCanvasElement | HTMLVideoElement | HTMLImageElement;
+  /** Default true. False makes the surface respond to scene lighting. */
+  unlit?: boolean;
+  /** Called on HA updates without recreating the source. */
+  update?: (ctx: TextureContext) => void;
+  /** Release timers, media tracks, connections and event handlers. */
+  dispose: () => void;
+}
+
+export interface TextureProvider {
+  /** Return false to leave the normal furniture appearance intact. First match wins. */
+  match: (ctx: TextureContext) => boolean;
+  /** Synchronous ownership: start async loading inside create, cancel it in dispose.
+   * Call invalidate after drawing a canvas or loading an image; video frames update automatically.
+   * reportError records asynchronous errors on the plugin's Extensions entry.
+   */
+  create: (ctx: TextureContext & { invalidate: () => void; reportError: (error: unknown) => void }) => TextureSource;
+}
+
 export interface NextFloorPlugin {
   /** Unique, e.g. "garage-door-plus". Registering the same id again replaces the plugin. */
   id: string;
@@ -144,6 +176,7 @@ export interface NextFloorPlugin {
   lightAnimations?: Record<string, LightAnimationFn>;
   devices?: DeviceExtension[];
   roomSections?: RoomSection[];
+  textures?: TextureProvider[];
 }
 
 /** A plugin source stored in the plan's settings. */
