@@ -1,13 +1,15 @@
 /** Own the GPU textures and provider lifetimes. Plugins never need a Three.js dependency. */
 import { CanvasTexture, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, Texture, VideoTexture, type Scene } from "three";
 import type { TextureContext, TextureProvider, TextureSource } from "../plugins/api.ts";
-import { pluginTexture } from "../plugins/registry.ts";
+import { pluginTexture, type PluginData } from "../plugins/registry.ts";
 import type { FloorLift } from "./live-energy.ts";
 import type { TextureSurface } from "./texture-surfaces.ts";
 
 export interface TextureInput {
   key: string;
-  context: TextureContext;
+  context: Omit<TextureContext, "settings">;
+  /** The furniture's plugin data: the settings of the provider come from here. */
+  stored?: PluginData | null;
   surface: TextureSurface;
   x: number;
   z: number;
@@ -15,6 +17,8 @@ export interface TextureInput {
 }
 interface View {
   input: TextureInput;
+  context: TextureContext;
+  settingsKey: string;
   provider: TextureProvider;
   registration: object;
   source: TextureSource;
@@ -60,16 +64,19 @@ export class PluginTextureLayer {
     const keep = new Set<string>();
     for (const input of this.inputs) {
       if (!this.enabled || !this.lift(input.context.floorId).visible) continue;
-      const found = pluginTexture(input.context);
+      const found = pluginTexture(input.context, input.stored);
       if (!found) continue;
       keep.add(input.key);
+      const settingsKey = JSON.stringify(found.context.settings);
       let v = this.views.get(input.key);
-      if (v && (v.registration !== found.registration || v.provider !== found.provider)) { this.drop(input.key, v); v = undefined; }
-      if (!v && !this.failed.has(input.key)) v = this.create(input, found.provider, found.registration, found.reportError);
+      // A changed setting (a new stream name, say) starts the instance afresh.
+      if (v && (v.registration !== found.registration || v.provider !== found.provider || v.settingsKey !== settingsKey)) { this.drop(input.key, v); this.failed.delete(input.key); v = undefined; }
+      if (!v && !this.failed.has(input.key)) v = this.create(input, found.context, settingsKey, found.provider, found.registration, found.reportError);
       if (!v) continue;
       v.input = input;
+      v.context = found.context;
       if (update) {
-        try { v.source.update?.(input.context); }
+        try { v.source.update?.(found.context); }
         catch (error) { v.reportError(error); this.drop(input.key, v); this.failed.add(input.key); continue; }
       }
       const s = input.surface, a = input.rotation * Math.PI / 180;
@@ -83,7 +90,7 @@ export class PluginTextureLayer {
     for (const [key, v] of this.views) if (!keep.has(key)) this.drop(key, v);
   }
 
-  private create(input: TextureInput, provider: TextureProvider, registration: object, reportError: (error: unknown) => void): View | undefined {
+  private create(input: TextureInput, context: TextureContext, settingsKey: string, provider: TextureProvider, registration: object, reportError: (error: unknown) => void): View | undefined {
     let source: TextureSource | undefined;
     let texture: Texture | undefined;
     let view: View | undefined;
@@ -94,7 +101,7 @@ export class PluginTextureLayer {
       this.invalidate();
     };
     try {
-      source = provider.create({ ...input.context, invalidate, reportError });
+      source = provider.create({ ...context, invalidate, reportError });
       if (!source || typeof source.dispose !== "function") throw new Error("texture provider must return source and dispose()");
       const element = source.source;
       if (element instanceof HTMLVideoElement) texture = new VideoTexture(element);
@@ -105,7 +112,7 @@ export class PluginTextureLayer {
       const material = source.unlit === false ? new MeshStandardMaterial({ map: texture }) : new MeshBasicMaterial({ map: texture, toneMapped: false });
       const mesh = new Mesh(new PlaneGeometry(1, 1), material);
       mesh.renderOrder = 7;
-      view = { input, provider, registration, source, texture, mesh, reportError, cancelFrame: () => {}, alive: true };
+      view = { input, context, settingsKey, provider, registration, source, texture, mesh, reportError, cancelFrame: () => {}, alive: true };
       const current = view;
       if (element instanceof HTMLVideoElement) {
         let frame = 0;

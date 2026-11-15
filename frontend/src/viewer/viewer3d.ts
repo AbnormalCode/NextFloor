@@ -1310,7 +1310,7 @@ export class NextFloorViewer {
     if (building && hasPluginTextures()) for (const floor of building.floors) for (const f of floor.furniture) {
       const entityId = links.get(f.id)?.entity ?? null;
       for (const surface of textureSurfaces(f, floor)) inputs.push({
-        key: JSON.stringify([floor.id, f.id, surface.name]), surface, x: f.x, z: f.z, rotation: f.rotation,
+        key: JSON.stringify([floor.id, f.id, surface.name]), surface, x: f.x, z: f.z, rotation: f.rotation, stored: f.plugin,
         context: { hass, floorId: floor.id, furnitureId: f.id, furnitureType: f.type, surface: surface.name, entityId, state: entityId ? hass.states[entityId] : undefined },
       });
     }

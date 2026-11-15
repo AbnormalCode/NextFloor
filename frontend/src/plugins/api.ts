@@ -45,7 +45,7 @@ export interface DeviceSetting {
   /** 1–32 letters, digits or "_". */
   key: string;
   label: PluginText;
-  type: "number" | "select" | "boolean" | "entity";
+  type: "number" | "select" | "boolean" | "entity" | "text";
   default: SettingValue;
   /** Numbers: limits and step. */
   min?: number;
@@ -55,6 +55,9 @@ export interface DeviceSetting {
   options?: [string, PluginText][];
   /** Entities: the entity picker offers only these domains (e.g. ["binary_sensor"]); the value is an entity id, "" for none (the default). */
   domains?: string[];
+  /** Texts: the longest value (default and limit 120 characters) and the grey hint in the empty field. Never ask for secrets: the value is stored in the plan. */
+  maxLength?: number;
+  placeholder?: PluginText;
   hint?: PluginText;
 }
 
@@ -143,6 +146,8 @@ export interface TextureContext {
   surface: string;
   entityId: string | null;
   state: HassEntity | undefined;
+  /** The provider's `settings` as set on this furniture item in the editor: stored values that fit, defaults for the rest. Empty without `settings`. */
+  settings: Record<string, SettingValue>;
 }
 
 export interface TextureSource {
@@ -157,6 +162,10 @@ export interface TextureSource {
 }
 
 export interface TextureProvider {
+  /** Fields in the form of furniture that has one of these `surfaces`; their values reach `match`, `create` and `update` as `context.settings`. Changing a value recreates the instance. */
+  settings?: DeviceSetting[];
+  /** Surface names (e.g. ["screen"]) that show `settings` in the furniture form; without it the fields are not offered. */
+  surfaces?: string[];
   /** Return false to leave the normal furniture appearance intact. First match wins. */
   match: (ctx: TextureContext) => boolean;
   /** Synchronous ownership: start async loading inside create, cancel it in dispose.

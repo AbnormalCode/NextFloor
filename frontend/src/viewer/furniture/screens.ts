@@ -2,7 +2,9 @@
 
 import { builtinBase, type Floor, type Furniture } from "../../model.ts";
 import { fittedParts, mountBase, packItem } from "../../packs.ts";
-import { RADIATOR_Y } from "./kitchen.ts";
+
+/** The height of the underside of a radiator (here, not in kitchen.ts, so the editor can use screens without pulling in three.js). */
+export const RADIATOR_Y = 0.12;
 
 export interface ScreenRect {
   x0: number;

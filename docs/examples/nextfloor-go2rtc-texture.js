@@ -1,21 +1,22 @@
-/** Copy to /config/www/nextfloor/go2rtc-texture.js, edit SOURCES, then add under Extensions → Plugins.
- * Uses the generic texture API from the texture-providers branch. No external JS dependencies.
- * server is the browser-reachable go2rtc base URL (HTTPS when HA uses HTTPS), not an RTSP URL.
- * Do not put credentials here: /local files can be downloaded without HA authentication.
+/** Copy to /config/www/nextfloor/go2rtc-texture.js, then add /local/nextfloor/go2rtc-texture.js under Extensions → Plugins.
+ * Select a TV in the editor, link its media player and fill in the "go2rtc video textures" fields of its form:
+ * the browser-reachable go2rtc address (HTTPS when HA uses HTTPS), not an RTSP URL, and the stream name.
+ * Both are stored in the plan, so never put credentials into them. Uses the generic texture API; no external JS dependencies.
  */
-const SOURCES = {
-  // "media_player.living_room_tv": { server: "https://go2rtc.example.net/", stream: "tv_capture" },
-};
-
 const plugin = {
   id: "go2rtc-texture",
   name: "go2rtc video textures",
-  version: "0.1.0",
+  version: "0.2.0",
   apiVersion: 1,
   textures: [{
-    match: ({ entityId, surface, state }) => surface === "screen" && !!SOURCES[entityId] && !!state && !["off", "unavailable", "unknown", "standby"].includes(state.state),
-    create: ({ entityId, reportError }) => {
-      const config = SOURCES[entityId];
+    surfaces: ["screen"],
+    settings: [
+      { key: "server", type: "text", default: "", label: { en: "go2rtc address", de: "go2rtc-Adresse" }, placeholder: "https://go2rtc.example.net/", hint: { en: "Reachable from the browser; no passwords in it", de: "Vom Browser erreichbar; keine Passwörter darin" } },
+      { key: "stream", type: "text", default: "", label: { en: "Stream name", de: "Stream-Name" }, placeholder: "tv_capture" },
+    ],
+    match: ({ surface, state, settings }) => surface === "screen" && !!settings.server && !!settings.stream && !!state && !["off", "unavailable", "unknown", "standby"].includes(state.state),
+    create: ({ settings, reportError }) => {
+      const config = settings;
       const url = new URL("api/ws", config.server.endsWith("/") ? config.server : config.server + "/");
       if (!["http:", "https:"].includes(url.protocol)) throw new Error("go2rtc server must use HTTP or HTTPS");
       url.protocol = url.protocol === "https:" ? "wss:" : "ws:";

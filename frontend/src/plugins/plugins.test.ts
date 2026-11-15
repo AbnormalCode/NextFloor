@@ -283,3 +283,17 @@ test("an entity setting takes an entity id of the allowed domains, else its defa
   assert.deepEqual(pluginWatched(ctx, { cams: { sensor: "binary_sensor.door" } }), ["binary_sensor.door"]);
   assert.equal(pluginMarkerPatch(ctx, { cams: { sensor: "binary_sensor.door" } })?.text, "binary_sensor.door");
 });
+
+test("texture provider settings: validated, offered by surface, text values limited", async () => {
+  const { pluginTextureSettings, settingsWithDefaults, registerPlugin, resetPlugins } = await import("./registry.ts");
+  resetPlugins();
+  const server = { key: "server", type: "text" as const, label: "Address", default: "", maxLength: 10 };
+  registerPlugin({ id: "tex", name: "Tex", apiVersion: 1, textures: [{ surfaces: ["screen"], settings: [server], match: () => true, create: () => ({ source: {} as HTMLCanvasElement, dispose() {} }) }] });
+  assert.deepEqual(pluginTextureSettings(["picture"]), []);
+  assert.deepEqual(pluginTextureSettings(["screen", "picture"]).map((g) => [g.pluginId, g.name, g.settings.length]), [["tex", "Tex", 1]]);
+  assert.deepEqual(settingsWithDefaults([server], { server: "short" }), { server: "short" });
+  assert.deepEqual(settingsWithDefaults([server], { server: "far too long a text" }), { server: "" });
+  assert.deepEqual(settingsWithDefaults([server], { server: 5 as unknown as string }), { server: "" });
+  assert.throws(() => registerPlugin({ id: "bad", apiVersion: 1, textures: [{ settings: [{ key: "x y", type: "text", label: "x", default: "" }], match: () => true, create: () => ({ source: {} as HTMLCanvasElement, dispose() {} }) }] }), /key/);
+  resetPlugins();
+});
