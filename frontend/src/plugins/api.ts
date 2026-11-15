@@ -58,6 +58,8 @@ export interface DeviceSetting {
   /** Texts: the longest value (default and limit 120 characters) and the grey hint in the empty field. Never ask for secrets: the value is stored in the plan. */
   maxLength?: number;
   placeholder?: PluginText;
+  /** Show the field only while another setting of the same plugin has this value (or one of these values). The hidden field keeps its stored value. */
+  showWhen?: { key: string; value: string | string[] };
   hint?: PluginText;
 }
 

@@ -227,6 +227,12 @@ export function settingsWithDefaults(settings: readonly DeviceSetting[] | undefi
   return out;
 }
 
+/** Whether a setting's field is shown: always, or while the setting named in `showWhen` has one of its values. */
+export function settingVisible(setting: DeviceSetting, values: Record<string, SettingValue>): boolean {
+  const when = setting.showWhen;
+  return !when || (typeof when.key === "string" && [when.value].flat().includes(String(values[when.key])));
+}
+
 /** A wedge as the 3D view draws it. */
 export interface DrawnWedge {
   angle: number;

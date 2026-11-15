@@ -297,3 +297,14 @@ test("texture provider settings: validated, offered by surface, text values limi
   assert.throws(() => registerPlugin({ id: "bad", apiVersion: 1, textures: [{ settings: [{ key: "x y", type: "text", label: "x", default: "" }], match: () => true, create: () => ({ source: {} as HTMLCanvasElement, dispose() {} }) }] }), /key/);
   resetPlugins();
 });
+
+test("showWhen hides a field until another setting of the plugin has the value", async () => {
+  const { settingVisible } = await import("./registry.ts");
+  const always = { key: "a", type: "text" as const, label: "A", default: "" };
+  const one = { ...always, key: "b", showWhen: { key: "source", value: "go2rtc" } };
+  const many = { ...always, key: "c", showWhen: { key: "source", value: ["snapshot", "mjpeg"] } };
+  assert.equal(settingVisible(always, { source: "none" }), true);
+  assert.deepEqual([one, many].map((s) => settingVisible(s, { source: "go2rtc" })), [true, false]);
+  assert.deepEqual([one, many].map((s) => settingVisible(s, { source: "mjpeg" })), [false, true]);
+  assert.equal(settingVisible(one, {}), false);
+});
