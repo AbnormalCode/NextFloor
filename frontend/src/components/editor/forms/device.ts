@@ -7,11 +7,11 @@ import { iconPath } from "../../../icons.ts";
 import { ceilingAt, FURNITURE_TYPES, isLamp, type LampMount, type Placement } from "../../../model.ts";
 import { packItemLabel, packLabel } from "../../../furniture-names.ts";
 import { isClimateFurniture, isElectric, isPackType, packType, type FurniturePack } from "../../../packs.ts";
-import { checkField, deviceIcon, entityField, glowField, iconField, markerField, pinShiftField, numberField, selectField, textField } from "../fields.ts";
-import { entityOptions } from "../entities.ts";
+import { checkField, deviceIcon, glowField, iconField, markerField, pinShiftField, numberField, selectField, textField } from "../fields.ts";
 import type { EditorHost } from "../host.ts";
 import { lightEffectFields } from "../light-effect-fields.ts";
-import { pluginDeviceSettings, pluginText, settingsWithDefaults } from "../../../plugins/registry.ts";
+import { pluginDeviceSettings } from "../../../plugins/registry.ts";
+import { pluginSettingFields } from "./plugin-fields.ts";
 
 export interface DeviceActions {
   update(patch: Partial<Placement>): void;
@@ -58,27 +58,7 @@ function asFurniture(host: EditorHost, placed: Placement, actions: DeviceActions
 
 /** The fields plugins add for this device (a camera's field of view, say), stored with the placement per plugin. */
 function pluginFields(host: EditorHost, placed: Placement, set: (patch: Partial<Placement>) => void): TemplateResult[] {
-  const language = host.hass?.language ?? "en";
-  return pluginDeviceSettings(placed.entity_id, host.hass?.states[placed.entity_id]).map(({ pluginId, name, settings }) => {
-    const values = settingsWithDefaults(settings, placed.plugin?.[pluginId]);
-    const store = (key: string, value: string | number | boolean) => set({ plugin: { ...(placed.plugin ?? {}), [pluginId]: { ...(placed.plugin?.[pluginId] ?? {}), [key]: value } } });
-    const fields = settings.map((s) => {
-      const label = pluginText(s.label, language);
-      const title = s.hint ? pluginText(s.hint, language) : undefined;
-      if (s.type === "boolean") return checkField(host, label, values[s.key] === true, (on) => store(s.key, on), { title });
-      if (s.type === "select") {
-        const choices = (s.options ?? []).map(([v, l]): [string, string] => [v, pluginText(l, language)]);
-        return selectField(host, label, String(values[s.key]), choices, (v) => store(s.key, v), { wide: true, title });
-      }
-      if (s.type === "entity") {
-        const options = entityOptions(host.hass, (id) => !s.domains?.length || s.domains.includes(id.split(".")[0]));
-        return entityField(host, label, String(values[s.key]) || null, undefined, options, (v) => store(s.key, v && v !== "none" ? v : ""));
-      }
-      const clamp = (v: number) => Math.min(s.max ?? Infinity, Math.max(s.min ?? -Infinity, v));
-      return numberField(host, label, Number(values[s.key]), (v) => store(s.key, clamp(v)), s.step ?? 1, s.min);
-    });
-    return html`<h4 class="nf-lib-head nf-wide">🔌 ${name}</h4>${fields}`;
-  });
+  return pluginSettingFields(host, pluginDeviceSettings(placed.entity_id, host.hass?.states[placed.entity_id]), placed.plugin, (plugin) => set({ plugin }));
 }
 
 /** The form of the selected device. */

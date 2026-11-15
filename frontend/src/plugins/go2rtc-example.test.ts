@@ -28,13 +28,13 @@ function setup(socketThrows = false) {
     close() { this.closed = true; }
   }
   class Media { tracks: any[] = []; addTrack(track: unknown) { this.tracks.push(track); } getTracks() { return this.tracks; } }
-  runInNewContext(readFileSync(new URL("../../../docs/examples/nextfloor-go2rtc-texture.js", import.meta.url), "utf8").replace("const SOURCES = {", 'const SOURCES = { "media_player.test": { server: "https://example.test/", stream: "capture" },'), {
+  runInNewContext(readFileSync(new URL("../../../docs/examples/nextfloor-go2rtc-texture.js", import.meta.url), "utf8"), {
     window: { NextFloor: { register: (p: unknown) => { plugin = p; } } }, URL,
     document: { createElement: () => video }, RTCPeerConnection: Peer, WebSocket: Socket, MediaStream: Media,
     setTimeout: (fn: () => void) => { const id = ++cancelled; timers.set(id, fn); return id; }, clearTimeout: (id: number) => timers.delete(id),
   });
   const provider = plugin.textures[0];
-  const source = provider.create({ entityId: "media_player.test", reportError: (error: unknown) => errors.push(error) });
+  const source = provider.create({ entityId: "media_player.test", settings: { server: "https://example.test/", stream: "capture" }, reportError: (error: unknown) => errors.push(error) });
   return { provider, source, video, pc, ws, errors, timers };
 }
 const flush = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
@@ -53,11 +53,18 @@ test("go2rtc example negotiates video only, queues early ICE and cleans up track
 });
 test("go2rtc example cancels scheduled retries on removal and only matches powered TVs", () => {
   const { provider, source, ws, timers } = setup();
-  assert.equal(provider.match({ entityId: "media_player.test", surface: "screen", state: { state: "on" } }), true);
-  assert.equal(provider.match({ entityId: "media_player.test", surface: "screen", state: { state: "off" } }), false);
+  const settings = { server: "https://example.test/", stream: "capture" };
+  assert.equal(provider.match({ entityId: "media_player.test", surface: "screen", state: { state: "on" }, settings }), true);
+  assert.equal(provider.match({ entityId: "media_player.test", surface: "screen", state: { state: "off" }, settings }), false);
+  assert.equal(provider.match({ entityId: "media_player.test", surface: "screen", state: { state: "on" }, settings: { server: "", stream: "" } }), false);
   ws.onerror(); assert.equal(timers.size, 1); source.dispose(); assert.equal(timers.size, 0);
 });
 test("a synchronously blocked WebSocket does not leak its peer connection", () => {
   const { source, pc, errors, timers } = setup(true);
   assert.ok(pc.closed); assert.equal(errors.length, 1); source.dispose(); assert.equal(timers.size, 0);
+});
+test("the go2rtc example asks for its address and stream per screen", () => {
+  const { provider } = setup();
+  assert.deepEqual([...provider.surfaces], ["screen"]);
+  assert.deepEqual(JSON.parse(JSON.stringify(provider.settings.map((x: any) => [x.key, x.type]))), [["server", "text"], ["stream", "text"]]);
 });

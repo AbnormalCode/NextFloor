@@ -169,7 +169,7 @@ textures: [{
 }],
 ```
 
-`match(context)` and `update(context)` receive `hass`, `floorId`, `furnitureId`, `furnitureType`, `surface`, `entityId` (the resolved furniture entity, or null) and `state` (or undefined). The first matching provider wins. Match may run every rendered frame; keep it cheap and free of side effects. Returning false restores the normal surface. HA updates reach providers even when an entity is outside NextFloor's normal watch list.
+`match(context)` and `update(context)` receive `hass`, `floorId`, `furnitureId`, `furnitureType`, `surface`, `entityId` (the resolved furniture entity, or null) and `state` (or undefined) and `settings` (see below). The first matching provider wins. Match may run every rendered frame; keep it cheap and free of side effects. Returning false restores the normal surface. HA updates reach providers even when an entity is outside NextFloor's normal watch list.
 
 `create(context)` additionally receives `invalidate()` and `reportError(error)`. It returns synchronously with `{ source, unlit?, update?, dispose }`. Start asynchronous work internally and cancel it in `dispose`; do not return a Promise. Keep the source element and its dimensions stable for the instance's lifetime. Drawn canvas frames and loaded images need `invalidate()`; video frames automatically request rendering, with a 30 fps fallback on browsers without video-frame callbacks. Set image/video CORS attributes before loading cross-origin media. Textures stretch to the surface's aspect ratio; supply matching content or letterbox it in a canvas.
 
@@ -177,10 +177,32 @@ textures: [{
 
 Instances are recreated after provider replacement or visibility changes. A hidden floor, hidden browser tab, off-screen NextFloor card, dimmed view, removed furniture or destroyed viewer releases its resources. Camera-frustum/occlusion culling is not implemented: a surface outside the camera's view on an otherwise visible floor can still stream. Time travel disables plugin textures to avoid displaying today's live feed over historic state.
 
+### Settings per furniture item
+
+A provider can ask for values the person sets in the editor, for example a stream address. List them in `settings` (the same fields as device settings, including `text`) and name the surfaces that show them in `surfaces`:
+
+```js
+textures: [{
+  surfaces: ["screen"],
+  settings: [{ key: "stream", type: "text", default: "", label: "Stream name", placeholder: "tv_capture" }],
+  match: ({ surface, settings }) => surface === "screen" && settings.stream !== "",
+  create: ({ settings }) => { /* … */ },
+}],
+```
+
+Furniture with one of those surfaces shows the fields under the plugin's name in its form. The values are stored with the furniture item, and `match`, `create` and `update` receive them as `context.settings` (the stored value when it fits the field, the default otherwise). Changing a value disposes the instance and creates a new one. Do not ask for credentials: the values are saved in the plan and are readable by everyone who can read it.
+
 ### Surfaces and go2rtc
 
 Existing display furniture exposes `screen`, and photo frames expose `picture`. Custom packs can mark a stationary box part with `"texture": "art"`, making its front (+z) a named surface; no `screen` or media-player flag is required. Names `screen` and `picture` are reserved; use distinct names within each item. Mount height, resizing, mirroring and rotation are respected. Curved surfaces, moving parts and arbitrary imported-model UV materials are outside this initial API.
 
-The self-contained example `docs/examples/nextfloor-go2rtc-texture.js` uses go2rtc's WebSocket signalling and WebRTC video. Copy it to `/config/www/nextfloor/go2rtc-texture.js`, edit `SOURCES` to map your media-player entity to a browser-reachable go2rtc base URL and stream name, and add `/local/nextfloor/go2rtc-texture.js` under Extensions → Plugins. Link that entity to your TV furniture. The stream stops for off/standby/unavailable/unknown states; it is muted and reconnects with bounded backoff after failures.
+The self-contained example `docs/examples/nextfloor-go2rtc-texture.js` uses go2rtc's WebSocket signalling and WebRTC video. Copy it to `/config/www/nextfloor/go2rtc-texture.js` and add `/local/nextfloor/go2rtc-texture.js` under Extensions → Plugins. Link the media player to your TV furniture, select the TV in the editor and fill in the *go2rtc video textures* fields of its form: the browser-reachable go2rtc base URL and the stream name. Each TV has its own values; there is nothing to edit in the file. The stream stops for off/standby/unavailable/unknown states; it is muted and reconnects with bounded backoff after failures.
 
 Use an HTTPS/WSS endpoint when HA is served over HTTPS; the browser must also reach go2rtc's advertised WebRTC candidates. A go2rtc add-on ingress URL is not automatically a reusable direct signalling endpoint. Use a browser-compatible codec (normally H.264). Do not embed passwords or tokens in the example: HA's `/local` files are publicly downloadable. Keep access authenticated through your existing proxy/network arrangement. The example requests video only and does not capture a camera or microphone.
+
+### Showing a Home Assistant camera
+
+The example `docs/examples/nextfloor-camera-texture.js` puts a camera of Home Assistant on a TV screen or in a picture frame. Copy it to `/config/www/nextfloor/camera-texture.js` and add `/local/nextfloor/camera-texture.js` under Extensions → Plugins. Select the TV or frame in the editor and fill in the *Camera textures* fields of its form: the camera, and either snapshots every few seconds (1–60 s, the default) or the live MJPEG stream (1–15 frames per second). A TV linked to a media player shows its camera only while the player is on; a frame always shows it. The picture is fitted into a 16:9 canvas with black bars.
+
+It loads the camera's own `entity_picture` (Home Assistant's camera proxy with the access token, which it renews), so NextFloor must be opened from the same address as Home Assistant, and no credentials are stored anywhere. Snapshots are light and work with every camera; MJPEG is smoother but every visible screen decodes the stream in the browser. Hidden floors, tabs and removed furniture close the connection. Animated GIFs follow the same pattern: draw an `<img>` onto a canvas on a timer and call `invalidate()`.
+

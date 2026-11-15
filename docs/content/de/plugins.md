@@ -111,7 +111,7 @@ settings: [
 ],
 ```
 
-`key` is 1–32 letters, digits or `_`; `type` is `number`, `select` or `boolean`. Labels, hints and option labels are
+`key` is 1–32 letters, digits or `_`; `type` is `number`, `select`, `boolean` or `text` (free text, at most 120 characters; no secrets, it is stored in the plan). Labels, hints and option labels are
 plain text or texts by language code (English is the fallback). Your functions get `settings` with every key filled
 in: the stored value when it fits the field, the default otherwise.
 
@@ -147,10 +147,15 @@ Extensions page instead of half-working.
 
 Die optionale Liste `textures` erweitert API-Version 1 um Video-, Canvas- und Bildtexturen für benannte Möbeloberflächen. Jeder Anbieter hat `match(context)` und `create(context)`. `create` liefert synchron `{ source, unlit?, update?, dispose }`; `source` ist ein HTML-Video-, Canvas- oder Bildelement. `unlit` ist standardmäßig wahr. `update` erhält neue HA-Zustände, ohne die Quelle neu anzulegen. `dispose` beendet Verbindungen, Medien-Tracks, Timer und Ereignisbehandlung. Three.js wird vom Plugin nicht benötigt.
 
-Der Kontext enthält `hass`, `floorId`, `furnitureId`, `furnitureType`, `surface`, `entityId` und `state`. Bei `create` kommen `invalidate()` (Canvas/Bild neu zeichnen) und `reportError(error)` hinzu. Videoframes lösen das Zeichnen automatisch aus. Der erste passende Anbieter gewinnt; `match` kann pro Frame aufgerufen werden und muss schnell und nebenwirkungsfrei bleiben.
+Der Kontext enthält `hass`, `floorId`, `furnitureId`, `furnitureType`, `surface`, `entityId`, `state` und `settings` (siehe unten). Bei `create` kommen `invalidate()` (Canvas/Bild neu zeichnen) und `reportError(error)` hinzu. Videoframes lösen das Zeichnen automatisch aus. Der erste passende Anbieter gewinnt; `match` kann pro Frame aufgerufen werden und muss schnell und nebenwirkungsfrei bleiben.
 
 Bestehende Anzeigen bieten `screen`, Bilderrahmen `picture`. Ein unbewegter Quader eines Möbelpakets kann mit `"texture": "art"` seine Vorderseite (+z) benennen. Diese Textur ist unabhängig von einem Bildschirm oder Mediaplayer. `screen` und `picture` sind reserviert. Namen pro Möbelstück eindeutig wählen. Gekrümmte/bewegte Teile und beliebige UV-Materialien importierter Modelle werden zunächst nicht unterstützt.
 
 Beim Verbergen der Etage, des Browser-Tabs oder der Karte, beim Dimmen sowie beim Entfernen wird aufgeräumt; beim Wiederanzeigen wird die Quelle neu angelegt. Verdeckung durch andere Möbel und Sichtkegel der Kamera werden nicht geprüft. Zeitreise deaktiviert Plugin-Texturen.
 
-Ein eigenständiges go2rtc-Beispiel liegt unter `docs/examples/nextfloor-go2rtc-texture.js`. Nach `/config/www/nextfloor/` kopieren, `SOURCES` mit Mediaplayer-Entität, erreichbarer go2rtc-Basis-URL und Streamname ausfüllen und unter Erweiterungen → Plugins hinzufügen. HTTPS-HA benötigt HTTPS/WSS für die Signalisierung; WebRTC-Kandidaten müssen erreichbar sein. Das Beispiel empfängt nur stummes Video und verbindet nach Fehlern erneut. Keine Zugangsdaten in `/local`-Dateien speichern: Diese sind öffentlich abrufbar. Vollständiger Vertrag und Canvas-Beispiel stehen auf der englischen Plugin-Seite.
+Ein Anbieter kann Werte erfragen, die im Editor eingestellt werden, etwa eine Stream-Adresse: `settings` (wie die Geräteeinstellungen, auch `text`) und `surfaces` mit den Oberflächen, bei denen die Felder erscheinen. Möbel mit einer dieser Oberflächen zeigen die Felder unter dem Namen des Plugins in ihrem Formular. Die Werte werden am Möbelstück gespeichert und kommen als `context.settings` bei `match`, `create` und `update` an. Eine Änderung legt die Quelle neu an. Keine Zugangsdaten eintragen: Die Werte stehen im Plan.
+
+Ein eigenständiges go2rtc-Beispiel liegt unter `docs/examples/nextfloor-go2rtc-texture.js`. Nach `/config/www/nextfloor/` kopieren und unter Erweiterungen → Plugins hinzufügen. Den Mediaplayer mit dem Fernseher verknüpfen, den Fernseher im Editor wählen und in den Feldern *go2rtc video textures* die erreichbare go2rtc-Basis-URL und den Streamnamen eintragen; pro Fernseher eigene Werte. HTTPS-HA benötigt HTTPS/WSS für die Signalisierung; WebRTC-Kandidaten müssen erreichbar sein. Das Beispiel empfängt nur stummes Video und verbindet nach Fehlern erneut. Keine Zugangsdaten in `/local`-Dateien speichern: Diese sind öffentlich abrufbar. Vollständiger Vertrag und Canvas-Beispiel stehen auf der englischen Plugin-Seite.
+
+Ein zweites Beispiel, `docs/examples/nextfloor-camera-texture.js`, zeigt eine Home-Assistant-Kamera auf einem Fernseher oder in einem Bilderrahmen: nach `/config/www/nextfloor/` kopieren, unter Erweiterungen → Plugins hinzufügen, das Möbelstück im Editor wählen und in den Feldern *Camera textures* die Kamera sowie Standbild (alle 1–60 s) oder Live-MJPEG (1–15 Bilder pro Sekunde) einstellen. Ein Fernseher zeigt die Kamera nur, solange sein Mediaplayer an ist. Das Bild läuft über den Kamera-Proxy von Home Assistant; NextFloor muss unter derselben Adresse wie Home Assistant geöffnet sein. Es werden keine Zugangsdaten gespeichert.
+
