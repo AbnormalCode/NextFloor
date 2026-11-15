@@ -16,6 +16,8 @@ import {
   type RoomSectionContext,
   type SettingValue,
   type TapContext,
+  type TextureContext,
+  type TextureProvider,
 } from "./api.ts";
 
 export interface PluginStatus {
@@ -73,6 +75,9 @@ export function registerPlugin(plugin: NextFloorPlugin, source = ""): void {
     }
   }
   for (const section of plugin.roomSections ?? []) if (typeof section?.render !== "function" || typeof section.id !== "string") throw new Error(`plugin "${plugin.id}": every room section needs id and render()`);
+  for (const provider of plugin.textures ?? []) {
+    if (typeof provider?.match !== "function" || typeof provider.create !== "function") throw new Error(`plugin "${plugin.id}": every texture provider needs match() and create()`);
+  }
   plugins.set(plugin.id, {
     plugin,
     status: { id: plugin.id, name: plugin.name || plugin.id, version: plugin.version || "", source, errors: [] },
@@ -307,3 +312,17 @@ export function resetPlugins(): void {
   plugins.clear();
   changed();
 }
+
+/** First matching texture provider, with error reporting scoped to its registration. */
+export function pluginTexture(ctx: TextureContext): { provider: TextureProvider; registration: object; reportError: (error: unknown) => void } | null {
+  for (const { plugin, status } of plugins.values()) {
+    for (const provider of plugin.textures ?? []) {
+      try {
+        if (provider.match(ctx)) return { provider, registration: status, reportError: (error) => note(status, error) };
+      } catch (error) { note(status, error); }
+    }
+  }
+  return null;
+}
+
+export const hasPluginTextures = (): boolean => [...plugins.values()].some(({ plugin }) => !!plugin.textures?.length);

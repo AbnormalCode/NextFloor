@@ -59,6 +59,8 @@ PART_SCHEMA = vol.Schema(
         vol.Optional("glow", default=False): bool,
         # a screen (TV, monitor): shows the linked media player's app colour and picture on its front (+z)
         vol.Optional("screen", default=False): bool,
+        # named plugin texture on a stationary box part's front (+z)
+        vol.Optional("texture"): _ID,
         # a picture frame's opening: shows the item's own photo (a stored picture, a URL or an image entity)
         vol.Optional("picture", default=False): bool,
         # a button or socket of a switch plate (0 = the first): glows while the entity of that gang is on
@@ -86,6 +88,17 @@ PART_SCHEMA = vol.Schema(
         vol.Optional("paint"): bool,
     }
 )
+
+
+def _texture_part(part: dict[str, Any]) -> dict[str, Any]:
+    """Named texture surfaces currently cover stationary box fronts."""
+    if "texture" in part:
+        if part["shape"] != "box" or "move" in part:
+            raise vol.Invalid("texture requires a stationary box part")
+        if part["texture"] in ("screen", "picture"):
+            raise vol.Invalid("texture name is reserved for a built-in surface")
+    return part
+
 
 # Plan symbol in the same fractions (optional: without it the parts are drawn from above).
 SYMBOL_SCHEMA = vol.Any(
@@ -184,7 +197,7 @@ ITEM_SCHEMA = vol.Schema(
                 "garden",
             ]
         ),
-        vol.Required("parts"): vol.All([PART_SCHEMA], vol.Length(min=1, max=60)),
+        vol.Required("parts"): vol.All([vol.All(PART_SCHEMA, _texture_part)], vol.Length(min=1, max=60)),
         vol.Optional("symbol"): vol.All([SYMBOL_SCHEMA], vol.Length(max=40)),
         # colours to choose from; the first one is the default
         vol.Optional("colors"): vol.All([COLORWAY_SCHEMA], vol.Length(min=2, max=24)),
