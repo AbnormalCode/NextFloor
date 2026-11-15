@@ -4,6 +4,8 @@ All notable changes to NextFloor, newest first. Every release lists what is **Ad
 
 ## [Unreleased]
 
+## [0.31.7]
+
 ### Added
 
 - **Plugin settings per furniture item:** a texture provider can add its own fields (including free text) to the form of furniture that has its surface, and gets the values stored with the item. The go2rtc example uses this: the go2rtc address and stream name are set per TV in the editor, so nothing has to be edited in the plugin file any more.
