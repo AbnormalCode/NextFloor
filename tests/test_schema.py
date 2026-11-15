@@ -119,12 +119,12 @@ def test_placement_plugin_settings() -> None:
 def test_furniture_plugin_settings() -> None:
     item = {"id": "tv1", "type": "tv", "x": 1, "z": 1, "rotation": 0, "w": 1.2, "d": 0.1, "h": 0.7, "variant": None}
     assert FURNITURE_SCHEMA(item)["plugin"] is None
-    data = {"go2rtc-texture": {"server": "https://go2rtc.example.net/", "stream": "tv_capture"}}
+    data = {"feed-texture": {"server": "https://go2rtc.example.net/", "stream": "tv_capture"}}
     assert FURNITURE_SCHEMA({**item, "plugin": data})["plugin"] == data
     with pytest.raises(vol.Invalid):
-        FURNITURE_SCHEMA({**item, "plugin": {"go2rtc-texture": {"server": "x" * 121}}})
+        FURNITURE_SCHEMA({**item, "plugin": {"feed-texture": {"server": "x" * 121}}})
     with pytest.raises(vol.Invalid):
-        FURNITURE_SCHEMA({**item, "plugin": {"go2rtc-texture": {"nested": {"a": 1}}}})
+        FURNITURE_SCHEMA({**item, "plugin": {"feed-texture": {"nested": {"a": 1}}}})
 
 
 STAIRS = {"id": "s1", "type": "stairs", "x": 1, "z": 2, "rotation": 0, "w": 2.2, "d": 2.8, "h": 2.8, "variant": None}

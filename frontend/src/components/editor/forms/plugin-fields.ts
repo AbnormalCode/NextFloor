@@ -2,7 +2,7 @@
 
 import { html, type TemplateResult } from "lit";
 import type { DeviceSetting, SettingValue } from "../../../plugins/api.ts";
-import { pluginText, settingsWithDefaults, type PluginData } from "../../../plugins/registry.ts";
+import { pluginText, settingsWithDefaults, settingVisible, type PluginData } from "../../../plugins/registry.ts";
 import { checkField, entityField, numberField, selectField, textField } from "../fields.ts";
 import { entityOptions } from "../entities.ts";
 import type { EditorHost } from "../host.ts";
@@ -18,7 +18,7 @@ export function pluginSettingFields(
   return groups.map(({ pluginId, name, settings }) => {
     const values = settingsWithDefaults(settings as DeviceSetting[], stored?.[pluginId]);
     const store = (key: string, value: SettingValue) => onChange({ ...(stored ?? {}), [pluginId]: { ...(stored?.[pluginId] ?? {}), [key]: value } });
-    const fields = settings.map((s) => {
+    const fields = settings.filter((s) => settingVisible(s, values)).map((s) => {
       const label = pluginText(s.label, language);
       const title = s.hint ? pluginText(s.hint, language) : undefined;
       if (s.type === "boolean") return checkField(host, label, values[s.key] === true, (on) => store(s.key, on), { title });
