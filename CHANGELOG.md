@@ -4,6 +4,8 @@ All notable changes to NextFloor, newest first. Every release lists what is **Ad
 
 ## [Unreleased]
 
+## [0.31.8]
+
 ### Changed
 
 - **One plugin for TV and frame feeds:** the go2rtc and camera examples are now a single plugin, `docs/examples/nextfloor-feed-texture.js` ("TV and frame feeds"). Pick a source per TV or frame in the editor: a go2rtc stream, or a Home Assistant camera as snapshots or live (MJPEG). Each field shows only for the source that needs it. If you used the earlier go2rtc or camera example, copy the new file, remove the old plugin and enter the values again.
