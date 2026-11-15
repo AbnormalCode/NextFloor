@@ -4,6 +4,12 @@ All notable changes to NextFloor, newest first. Every release lists what is **Ad
 
 ## [Unreleased]
 
+## [0.31.6]
+
+### Fixed
+
+- **Fixes from the 0.31.4.x hotfixes now ship in the main line:** the star menu no longer keeps opening (#158), unnamed rooms no longer show an empty button in the room row (#152), and a NAS, router or server rack no longer lights the whole room (#153). Dragging a blind in 3D no longer floods Home Assistant with commands (#174), the full-screen button works on iPhone (#175), roofs and thin loft parts can be seen from below (#170), roller shutters keep their window across floors, bay windows and free walls (#115), and door arcs in the exported plan match the editor (#172). Details are in the 0.31.4.x sections below.
+
 ## [0.31.5]
 
 ### Added
