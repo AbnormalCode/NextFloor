@@ -10,6 +10,39 @@ All notable changes to NextFloor, newest first. Every release lists what is **Ad
 
 - **Plugin texture providers:** display video, canvas drawings or images on named furniture surfaces. Existing TVs expose `screen` and frames expose `picture`; custom packs can name stationary box fronts. Providers release resources when their surface or view is hidden or removed. Includes a go2rtc WebRTC example.
 
+## [0.31.4.3]
+
+### Fixed
+
+- **Dragging a blind in the 3D view no longer floods Home Assistant with commands** (thanks @tichris0, #174): a swipe on a blind sent a new position every 350 ms while the finger moved, and a blind motor cannot follow, so the controller queued every intermediate position and kept moving for a minute. A blind (and a fan) now gets one command when the finger lifts. A drag that ends where it began, such as a pan or rotation that merely started on a blind, sends nothing. Lamps still follow the finger.
+- **On an iPhone the full-screen button now works, and the bottom buttons keep clear of the system bar** (thanks @tichris0, #175): iPhone browsers have no Fullscreen API for elements, so the ⛶ button of the card did nothing; the card now covers the visible screen itself there. The switches and floor buttons at the bottom keep clear of the system's navigation bar or home indicator (`env(safe-area-inset-bottom)`), and the card's *fill* and full-screen height use the visible height (`dvh`) instead of `100vh`, which on iOS is taller than what you see. I could not try this on a real iPhone; please tell me whether the panel or a card is affected if it is not fixed for you.
+- **A NAS, router or server rack from a pack no longer lights the room** (thanks @Guenni75, #153): the fix in 0.31.4.2 never took effect. It looked for the item name (`nas`), but a pack item's type reads `pack:<pack>:nas`, so no device was recognised. It is matched by its item name now, with a test against the real pack.
+- **Door arcs in the exported or printed plan match the editor** (thanks @Guenni75, #172): the export drew every door the same way, into its room and hinged at the first end, whatever you had chosen. It now follows *Swing in/out*, the hinge side (seen from the room), two leaves, sliding doors and openings without a door.
+
+## [0.31.4.2]
+
+### Fixed
+
+- **Roofs and other thin loft parts of a furniture pack can be seen from below** (thanks @daluposoft, #170): a `loft` had no bottom face, so a sloped roof built from lofts vanished as soon as the camera went under it. Lofts of pack items now have an underside.
+- **A NAS or router still lit the room when linked to a switch or light** (thanks @Guenni75, #153): the 0.31.4.1 fix only covered sensors. Pack devices with status lights (NAS, router, server rack, PC tower, inverter, wallbox, battery, boiler, game console and the like) now never light their room, whatever they are linked to; only their own small lights glow.
+- **A window lost its roller shutter in 3D to a window with the same id on another floor** (thanks @Gifford47, #115): when two floors used the same id for a window or door (a plan written by hand or by an AI), the later floor's links replaced the earlier one's. A window with a cover picked in the editor then showed no shutter box, no blind and did not react to a tap, because its namesake upstairs had none. Ids of doors and windows are now unique in the whole house; the first one keeps its id.
+- **Bay windows over several walls show their roller shutter** (#115): the fix from 0.27.0 did not reach the 3D view, which still looked for the blind per piece. The pane now really gets its shutter box and blind.
+- **A window in a free wall outside every room keeps its blind** (#115): a cover or contact picked by hand for such a window was ignored in the 3D view.
+- **A camera's field of view fades out instead of turning black outside the walls** (thanks @tichris0, #165): where no floor lies under the wedge (a camera on the outside of the house, over the garden) the see-through 3D view turned the pixel opaque, so the fade-out showed black. The same went for the glow of a lamp in the garden. Light is now only added, the transparency is left alone.
+- **A low wall no longer blanks a camera's field of view** (thanks @tichris0, #164): the view stopped at every wall, however low. A wall lower than the camera now only casts a shadow behind it; a wall as high as the camera still hides what is behind it.
+- **A free wall over an outdoor area or a room can be selected again** (the fence of a lawn, say): a tap on it selected the area below it instead; the wall nearest to the tap now wins.
+- **No console error on the model upload page**: the page asks the server whether a model is there with a HEAD request, which was refused (405); the server now answers it.
+- **A map tile that cannot be decoded** (an error page instead of a picture) no longer raises an error in the 3D view; its square stays empty.
+- **Keep camera: the first floor no longer turns the view round** (thanks @Gifford47): with *🎥 Keep camera* on (card option `keep_camera`), the first floor opened from the house view still flew to the start view's side. It now opens from the side and height the house is looked at, like every later switch. A floor that was open before still comes back as it was left.
+
+## [0.31.4.1]
+
+### Fixed
+
+- **The star menu kept opening** (#158): with *Menu open* switched on for the device, the menu came back on every visit, however often it was closed. Closing it with the star now switches *Menu open* off, so it stays closed; the star opens it as before.
+- **Rooms without a name in the room row** (#152): an unnamed room showed as an empty button in the row above the 3D view and as a dash in the card's room buttons. It has no button any more, like it has no label in the 3D view.
+- **A NAS lit the whole room** (#153): a device from a pack with a status light (NAS, router, server rack and the like) that is linked to a sensor or binary sensor lit its room like a lamp while the sensor reported "on". Now only its small lights glow. Lamps linked to a light or a switch shine as before.
+
 ## [0.31.4]
 
 ### Fixed

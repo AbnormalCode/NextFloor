@@ -1,5 +1,6 @@
 // Lit wrapper around the lazily loaded 3D viewer.
 
+import { swipeSendsOnRelease, swipeSendsWhileMoving } from "../swipe-policy.ts";
 import { changeMoments, hassAt, loadHistory, replayable, type History } from "../live/time-travel.ts";
 import { sunPosition, todayAt } from "../sun-position.ts";
 import { dayCurves, statesRead, type DayCurves } from "../live/day-curves.ts";
@@ -49,11 +50,11 @@ import "./quick-menu.ts";
 import { load3d } from "../load3d.ts";
 import { scaleGlow, buildMarkers, openMoreInfo, stateText, toggleEntity, withPluginPatch } from "../markers.ts";
 import { fanSpin } from "../entities/fans.ts";
-import { fixtureGlow } from "../entities/kinds.ts";
+import { fixtureGlow, shinesAsLamp } from "../entities/kinds.ts";
 import { furnitureShown, hiddenFurniture, withoutHidden } from "../entities/visibility.ts";
 import { pictureUrl } from "../entities/pictures.ts";
 import { fetchImage, markNoteDone } from "../api.ts";
-import { ceilingOf, centroid, furnitureFootprint, groundLevel, isLamp, LAMP_MODEL, outdoorGround, outdoorTopAt, pointInPolygon, polygonArea, surfaceHeight, type Building, type Furniture, type Placement, type StartView } from "../model.ts";
+import { ceilingOf, centroid, furnitureFootprint, groundLevel, isLamp, isStatusDevice, LAMP_MODEL, outdoorGround, outdoorTopAt, pointInPolygon, polygonArea, surfaceHeight, type Building, type Furniture, type Placement, type StartView } from "../model.ts";
 import { floorCounts, floorInfoText, personsInRooms, powerText } from "../presence.ts";
 import { controls, tokens } from "../styles.ts";
 import type { HassEntity, HomeAssistant } from "../types.ts";
@@ -1246,6 +1247,9 @@ export class NfView3d extends LitElement {
         }
         if (isLamp(f.type)) {
           const lamp = this.lampMarker(hass, floor, f, linked?.entity ?? null);
+          // a device from a pack with a status light (a NAS, a router) linked to a sensor: its small lights glow, the room stays as it is (#153)
+          const lampSt = linked?.entity ? hass.states[linked.entity] : undefined;
+          if (plate && lampSt && (!shinesAsLamp(lampSt) || isStatusDevice(f.type)) && isActive(lampSt) && plate.parts.some((p) => p.glow || p.screen)) screens.set(f.id, { color: [0.3, 0.85, 1], level: 0.8, leds: true });
           // a lamp with a power sensor (a smart plug, a measuring switch): its watts on the pin and in the house's balance
           const lampW = linked?.power ? readPower(hass.states[linked.power]) : null;
           if (linked?.power && lampW !== null) {
@@ -1663,7 +1667,8 @@ export class NfView3d extends LitElement {
       text: st && (isActive(st) || !otherOn) ? stateText(hass, st) : otherOn ? entityName(hass, otherOn.entity_id) : "",
       active: (st ? isActive(st) : false) || !!otherOn,
       unavailable: st ? isUnavailable(st) : false,
-      glow: st || others.length ? scaleGlow(fixtureGlow(st, others, f.color_entity && f.color_entity !== "none" ? hass.states[f.color_entity] : undefined), f.glow_scale) : null,
+      // a sensor that reports "on" (a NAS's status, a running device) is no light: it must not light the room (#153)
+      glow: !isStatusDevice(f.type) && ((st && shinesAsLamp(st)) || others.length) ? scaleGlow(fixtureGlow(st && shinesAsLamp(st) ? st : undefined, others, f.color_entity && f.color_entity !== "none" ? hass.states[f.color_entity] : undefined), f.glow_scale) : null,
       lamp: model,
       rotation: f.rotation,
       mirror: !!f.mirror,
@@ -1677,7 +1682,7 @@ export class NfView3d extends LitElement {
       pack: item ? f.type : null,
       lightY: item ? (item.mount === "ceiling" ? base : base + f.h * 0.85) : undefined,
       ceiling: H,
-      effect: st?.state === "on" ? lightAnimation(f, lightEffectSource(hass, f, entity)) : undefined,
+      effect: st?.state === "on" && shinesAsLamp(st) && !isStatusDevice(f.type) ? lightAnimation(f, lightEffectSource(hass, f, entity)) : undefined,
       variant: f.variant,
       show: f.marker ?? undefined,
       fromFurniture: true,
@@ -1851,14 +1856,16 @@ export class NfView3d extends LitElement {
       // the whole range over about 220 pixels; up = brighter / blind up
       const value = Math.round(Math.min(100, Math.max(0, s.start - (dy / 220) * 100)));
       if (value !== s.value) this._swipe = { ...s, value };
-      // at most a few calls per second while the finger moves
+      // a lamp follows the finger, a few calls per second; a blind or a fan only gets one command when the finger lifts
+      // (a blind motor cannot follow, every intermediate position would be queued on the controller, #174)
       const now = performance.now();
-      if (now - this.swipeSent > 350) {
+      if (swipeSendsWhileMoving(s.kind) && now - this.swipeSent > 350) {
         this.swipeSent = now;
         this.applySwipe();
       }
     } else {
-      this.applySwipe();
+      // a drag that ended where it began (a pan that started on the device) changes nothing
+      if (this._swipe && swipeSendsOnRelease(this._swipe.kind, this._swipe.start, this._swipe.value)) this.applySwipe();
       clearTimeout(this.swipeTimer);
       this.swipeTimer = setTimeout(() => (this._swipe = null), 700);
     }
@@ -2025,6 +2032,8 @@ export class NfView3d extends LitElement {
       @click=${() => {
         this._central = !this._central;
         this._armed = null;
+        // closed by hand while "menu open" keeps it open on every visit (#158): tell the host, which turns that setting off
+        if (!this._central && this.centralOpen) this.dispatchEvent(new CustomEvent("nf-central-dismiss", { bubbles: true, composed: true }));
       }}
     >
       <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" /></svg>
@@ -4165,6 +4174,7 @@ export class NfView3d extends LitElement {
       .nf-wall-big > hui-picture-entity-card,
       .nf-wall-big > hui-error-card {
         width: min(100%, calc((100vh - 200px) * 16 / 9));
+        width: min(100%, calc((100dvh - 200px) * 16 / 9));
         --ha-card-background: transparent;
         --ha-card-border-width: 0;
         --ha-card-box-shadow: none;
