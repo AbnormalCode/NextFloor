@@ -324,6 +324,19 @@ _PIN_OFFSET = vol.Any(
     vol.Schema({vol.Optional(k): vol.All(vol.Coerce(float), vol.Range(min=-5, max=5)) for k in ("x", "y", "z")}),
 )
 
+# what plugins store on a placed device or a piece of furniture: a few plain values per plugin
+_PLUGIN_VALUES = vol.All(
+    vol.Schema(
+        {vol.All(str, vol.Match(r"^\w{1,32}$")): vol.Any(bool, int, float, vol.All(str, vol.Length(max=120)))},
+        extra=vol.PREVENT_EXTRA,
+    ),
+    vol.Length(max=30),
+)
+_PLUGIN_DATA = vol.All(
+    vol.Schema({vol.All(str, vol.Match(r"^[a-zA-Z0-9][\w.-]{0,63}$")): _PLUGIN_VALUES}, extra=vol.PREVENT_EXTRA),
+    vol.Length(max=10),
+)
+
 FURNITURE_SCHEMA = vol.Schema(
     {
         vol.Required("id"): _ID,
@@ -358,6 +371,8 @@ FURNITURE_SCHEMA = vol.Schema(
         vol.Optional("ambilight", default=None): vol.Any(None, vol.All(vol.Coerce(float), vol.Range(min=0, max=1.5))),
         # speakers: size of the sound rings while the linked media player plays (None = full, 0 = none)
         vol.Optional("sound_rings", default=None): vol.Any(None, vol.All(vol.Coerce(float), vol.Range(min=0, max=1.5))),
+        # settings plugins add to the furniture's form (texture providers): per plugin id, the values by key
+        vol.Optional("plugin", default=None): vol.Any(None, _PLUGIN_DATA),
         # linked entities (e.g. the TV's media player, a power sensor): None = automatic, "none" = no entity
         vol.Optional("entity", default=None): vol.Any(None, vol.All(str, vol.Length(max=255))),
         vol.Optional("power", default=None): vol.Any(None, vol.All(str, vol.Length(max=255))),
@@ -459,19 +474,6 @@ FURNITURE_SCHEMA = vol.Schema(
         ),
     },
     extra=vol.ALLOW_EXTRA,
-)
-
-# what plugins store on a placed device: a few plain values per plugin
-_PLUGIN_VALUES = vol.All(
-    vol.Schema(
-        {vol.All(str, vol.Match(r"^\w{1,32}$")): vol.Any(bool, int, float, vol.All(str, vol.Length(max=120)))},
-        extra=vol.PREVENT_EXTRA,
-    ),
-    vol.Length(max=30),
-)
-_PLUGIN_DATA = vol.All(
-    vol.Schema({vol.All(str, vol.Match(r"^[a-zA-Z0-9][\w.-]{0,63}$")): _PLUGIN_VALUES}, extra=vol.PREVENT_EXTRA),
-    vol.Length(max=10),
 )
 
 PLACEMENT_SCHEMA = vol.Schema(

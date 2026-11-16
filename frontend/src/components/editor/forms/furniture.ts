@@ -15,6 +15,9 @@ import type { EditorHost } from "../host.ts";
 import { careLink, coverLink, deviceTempLink, furnitureLinks, gangLinks, stateLinks, type FurnitureLinkActions } from "./furniture-links.ts";
 import { dataField, TARGET_EXAMPLES } from "./house.ts";
 import { parkingForm } from "./parking.ts";
+import { pluginSettingFields } from "./plugin-fields.ts";
+import { pluginTextureSettings } from "../../../plugins/registry.ts";
+import { textureSurfaces } from "../../../viewer/texture-surfaces.ts";
 import { stairForm } from "./stairs.ts";
 import { DEFAULT_STAIR } from "../../../geometry/stairs.ts";
 
@@ -236,6 +239,13 @@ function showWhenField(host: EditorHost, item: Furniture, actions: FurnitureActi
   </div>`;
 }
 
+/** Fields texture providers of plugins ask for on this item's surfaces (a go2rtc address for a TV's screen, say). */
+function pluginFields(host: EditorHost, item: Furniture, actions: FurnitureActions): TemplateResult | typeof nothing {
+  if (!host.floor) return nothing;
+  const groups = pluginTextureSettings(textureSurfaces(item, host.floor).map((s) => s.name));
+  return groups.length ? html`<div class="nf-form">${pluginSettingFields(host, groups, item.plugin, (plugin) => actions.update({ plugin }))}</div>` : nothing;
+}
+
 /** The form of the selected piece of furniture. */
 export function renderFurnitureForm(host: EditorHost, item: Furniture, actions: FurnitureActions): TemplateResult {
   const gangs = packItem(item.type)?.gangs ?? 0;
@@ -245,7 +255,7 @@ export function renderFurnitureForm(host: EditorHost, item: Furniture, actions: 
     <div class="nf-form">${nameFields(host, item, actions)} ${kindField(host, item, actions.packs, actions)} ${geometryFields(host, item, actions)}</div>
     ${typeNotes(host, item, actions)} ${item.type === "stairs" && item.stair ? stairForm(host, item, actions) : nothing} ${variantField(host, item, actions)} ${paintField(host, item, actions)}
     ${links} ${item.type.endsWith(":sprinkler") ? html`<div class="nf-form">${numberField(host, host.t("spray_reach"), item.spray ?? 3, (v) => actions.update({ spray: Math.min(15, Math.max(0.5, v)) }), 0.5, 0.5)}${hint(host.t("spray_hint"), "nf-wide")}</div>` : nothing}
-    ${hasPicture(item.type) ? pictureFields(host, item, actions) : nothing}
+    ${hasPicture(item.type) ? pictureFields(host, item, actions) : nothing} ${pluginFields(host, item, actions)}
     ${packItem(item.type)?.pet
       ? html`<div class="nf-form nf-links">${entityField(host, host.t("pet_room_sensor"), item.room_sensor ?? null, undefined, entityOptions(host.hass, (id) => /^(sensor|device_tracker|input_select|select)\./.test(id)), (v) => actions.update({ room_sensor: v && v !== "none" ? v : null }))}${hint(host.t("pet_room_hint"), "nf-wide")}</div>`
       : nothing}

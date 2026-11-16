@@ -5,6 +5,7 @@ import type { Furniture } from "../../model.ts";
 import { DEG, type GeoBuffer } from "../geo.ts";
 import { flipWinding, type Builder } from "./builder.ts";
 import { cabinet, fronts } from "./parts.ts";
+import { RADIATOR_Y } from "./screens.ts";
 import { C, EDGE_FAINT, EDGE_FURN, EDGE_GLOW, M, material } from "./palette.ts";
 
 const worktop = (b: Builder, w: number, d: number, h: number) => b.block({ x: [-w / 2, w / 2], y: [h - 0.04, h], z: [-d / 2, d / 2] }, M.worktop, EDGE_FURN);
@@ -220,8 +221,7 @@ export function washbasin(b: Builder, w: number, d: number, h: number): void {
   b.block({ x: [-w / 2 + 0.04, w / 2 - 0.04], y: [h + 0.35, h + 1], z: [-d / 2, -d / 2 + 0.02] }, M.glass, EDGE_GLOW);
 }
 
-/** The height of the underside of a radiator. */
-export const RADIATOR_Y = 0.12;
+export { RADIATOR_Y } from "./screens.ts";
 
 /** A radiator on the wall (back at -z): a panel with vertical fins, standing on short brackets. */
 export function radiator(b: Builder, w: number, d: number, h: number): void {

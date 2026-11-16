@@ -80,3 +80,22 @@ test("switching between providers in one plugin recreates the source", () => {
   assert.equal(created, 2); assert.equal(disposed, 1);
   l.dispose(); assert.equal(disposed, 2);
 });
+
+test("stored plugin settings reach the provider; changing one recreates the instance", () => {
+  const seen: unknown[] = []; let created = 0, disposed = 0;
+  registerPlugin({
+    id: "texture-test", apiVersion: 1,
+    textures: [{
+      surfaces: ["screen"], settings: [{ key: "stream", type: "text", label: "Stream", default: "" }],
+      match: ({ settings }) => settings.stream !== "",
+      create: ({ settings }) => { created++; seen.push(settings.stream); return { source: new Canvas() as HTMLCanvasElement, dispose: () => { disposed++; } }; },
+    }],
+  });
+  const l = layer();
+  l.set([input]); assert.equal(created, 0);
+  l.set([{ ...input, stored: { "texture-test": { stream: "a" } } }]); assert.equal(created, 1);
+  l.set([{ ...input, stored: { "texture-test": { stream: "a" } } }]); assert.equal(created, 1);
+  l.set([{ ...input, stored: { "texture-test": { stream: "b" } } }]); assert.equal(created, 2); assert.equal(disposed, 1);
+  assert.deepEqual(seen, ["a", "b"]);
+  l.set([input]); assert.equal(disposed, 2); l.dispose();
+});

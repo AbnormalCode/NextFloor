@@ -49,7 +49,8 @@ try {
       close(){if(this.readyState===3)return;this.readyState=3;window.textureTest.closed++;clearInterval(this.timer);this.pc.onicecandidate=null;this.pc.close();this.media.getTracks().forEach(t=>t.stop());}
     };
   });
-  const example=readFileSync(resolve(root,'docs/examples/nextfloor-go2rtc-texture.js'),'utf8').replace('const SOURCES = {','const SOURCES = { "media_player.fernseher": { server: "http://localhost/", stream: "test_capture" },');
+  // The example reads its address and stream from the furniture's settings; the demo plan stores none, so the defaults carry the test values.
+  const example=readFileSync(resolve(root,'docs/examples/nextfloor-feed-texture.js'),'utf8').replace('key: "source", type: "select", default: "none"','key: "source", type: "select", default: "go2rtc"').replace('key: "server", type: "text", default: ""','key: "server", type: "text", default: "http://localhost/"').replace('key: "stream", type: "text", default: ""','key: "stream", type: "text", default: "test_capture"');
   await page.addScriptTag({content:example});
   await page.waitForFunction(()=>[...document.querySelector('nextfloor-panel').shadowRoot.querySelector('nf-view3d').viewer.textureLayer.views.values()].some(v=>v.source.source.readyState>=2&&v.source.source.videoWidth===640),{timeout:20000});
   const result=await page.evaluate(async()=>{
@@ -58,7 +59,7 @@ try {
     const pixel=()=>{const c=document.createElement('canvas');c.width=c.height=1;const g=c.getContext('2d');g.drawImage(video,0,0,1,1);return [...g.getImageData(0,0,1,1).data];};
     const first=pixel(),before=video.getVideoPlaybackQuality().totalVideoFrames;window.textureTest.phase=1;
     await new Promise(done=>setTimeout(done,700));
-    return {first,second:pixel(),frames:video.getVideoPlaybackQuality().totalVideoFrames-before,videoTexture:view.texture.isVideoTexture,errors:window.__nextfloorPluginStore.plugins.get('go2rtc-texture').status.errors};
+    return {first,second:pixel(),frames:video.getVideoPlaybackQuality().totalVideoFrames-before,videoTexture:view.texture.isVideoTexture,errors:window.__nextfloorPluginStore.plugins.get('feed-texture').status.errors};
   });
   assert.ok(result.videoTexture);assert.ok(result.frames>3,JSON.stringify(result));assert.notDeepEqual(result.first,result.second);assert.deepEqual(result.errors,[]);
   mkdirSync(resolve(root,'preview/screenshots'),{recursive:true});

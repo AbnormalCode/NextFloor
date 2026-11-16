@@ -223,6 +223,8 @@ export interface Furniture extends LightEffectConfig {
   sound_rings?: number | null;
   /** An own symbol for the marker: a Material Design icon name without "mdi:" (null = by kind). */
   icon?: string | null;
+  /** Settings plugins add to the furniture's form (texture providers): per plugin id, the values by key. */
+  plugin?: Record<string, Record<string, string | number | boolean>> | null;
   /** Linked entity, e.g. the TV's media player (null = automatic, "none" = none). */
   entity?: EntityRef;
   /** Power sensor (null = automatic: the linked entity's device or a matching name). */

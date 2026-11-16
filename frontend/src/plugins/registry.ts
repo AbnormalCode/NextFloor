@@ -71,12 +71,16 @@ export function registerPlugin(plugin: NextFloorPlugin, source = ""): void {
     for (const key of ["floorWedge", "tap", "watch"] as const) if (device[key] !== undefined && typeof device[key] !== "function") throw new Error(`plugin "${plugin.id}": ${key} must be a function`);
     for (const s of device.settings ?? []) {
       if (!s || typeof s.key !== "string" || !/^\w{1,32}$/.test(s.key)) throw new Error(`plugin "${plugin.id}": a setting needs a key of 1–32 letters, digits or "_"`);
-      if (!["number", "select", "boolean", "entity"].includes(s.type)) throw new Error(`plugin "${plugin.id}": setting "${s.key}" has an unknown type`);
+      if (!["number", "select", "boolean", "entity", "text"].includes(s.type)) throw new Error(`plugin "${plugin.id}": setting "${s.key}" has an unknown type`);
     }
   }
   for (const section of plugin.roomSections ?? []) if (typeof section?.render !== "function" || typeof section.id !== "string") throw new Error(`plugin "${plugin.id}": every room section needs id and render()`);
   for (const provider of plugin.textures ?? []) {
     if (typeof provider?.match !== "function" || typeof provider.create !== "function") throw new Error(`plugin "${plugin.id}": every texture provider needs match() and create()`);
+    for (const s of provider.settings ?? []) {
+      if (!s || typeof s.key !== "string" || !/^\w{1,32}$/.test(s.key)) throw new Error(`plugin "${plugin.id}": a texture setting needs a key of 1–32 letters, digits or "_"`);
+      if (!["number", "select", "boolean", "entity", "text"].includes(s.type)) throw new Error(`plugin "${plugin.id}": texture setting "${s.key}" has an unknown type`);
+    }
   }
   plugins.set(plugin.id, {
     plugin,
@@ -215,10 +219,18 @@ export function settingsWithDefaults(settings: readonly DeviceSetting[] | undefi
           ? typeof v === "boolean"
           : s.type === "entity"
             ? typeof v === "string" && /^([a-z_]+\.\w+)?$/.test(v) && (!s.domains?.length || v === "" || s.domains.includes(v.split(".")[0]))
-            : typeof v === "string" && (s.options ?? []).some(([o]) => o === v);
+            : s.type === "text"
+              ? typeof v === "string" && v.length <= Math.min(120, s.maxLength ?? 120)
+              : typeof v === "string" && (s.options ?? []).some(([o]) => o === v);
     out[s.key] = fits ? v! : s.default;
   }
   return out;
+}
+
+/** Whether a setting's field is shown: always, or while the setting named in `showWhen` has one of its values. */
+export function settingVisible(setting: DeviceSetting, values: Record<string, SettingValue>): boolean {
+  const when = setting.showWhen;
+  return !when || (typeof when.key === "string" && [when.value].flat().includes(String(values[when.key])));
 }
 
 /** A wedge as the 3D view draws it. */
@@ -313,12 +325,28 @@ export function resetPlugins(): void {
   changed();
 }
 
-/** First matching texture provider, with error reporting scoped to its registration. */
-export function pluginTexture(ctx: TextureContext): { provider: TextureProvider; registration: object; reportError: (error: unknown) => void } | null {
+/** The settings texture providers offer for furniture that has one of these surfaces, with the plugin they belong to. */
+export function pluginTextureSettings(surfaces: readonly string[]): { pluginId: string; name: string; settings: DeviceSetting[] }[] {
+  const out: { pluginId: string; name: string; settings: DeviceSetting[] }[] = [];
+  for (const { plugin, status } of plugins.values()) {
+    const seen = new Set<string>();
+    const settings: DeviceSetting[] = [];
+    for (const provider of plugin.textures ?? []) {
+      if (!provider.settings?.length || !provider.surfaces?.some((name) => surfaces.includes(name))) continue;
+      for (const setting of provider.settings) if (!seen.has(setting.key)) { seen.add(setting.key); settings.push(setting); }
+    }
+    if (settings.length) out.push({ pluginId: status.id, name: status.name, settings });
+  }
+  return out;
+}
+
+/** First matching texture provider, with error reporting scoped to its registration. `stored` is the furniture's plugin data. */
+export function pluginTexture(ctx: Omit<TextureContext, "settings">, stored?: PluginData | null): { provider: TextureProvider; registration: object; reportError: (error: unknown) => void; context: TextureContext } | null {
   for (const { plugin, status } of plugins.values()) {
     for (const provider of plugin.textures ?? []) {
       try {
-        if (provider.match(ctx)) return { provider, registration: status, reportError: (error) => note(status, error) };
+        const context: TextureContext = { ...ctx, settings: settingsWithDefaults(provider.settings, stored?.[plugin.id]) };
+        if (provider.match(context)) return { provider, registration: status, reportError: (error) => note(status, error), context };
       } catch (error) { note(status, error); }
     }
   }
