@@ -4,6 +4,10 @@ All notable changes to NextFloor, newest first. Every release lists what is **Ad
 
 ## [Unreleased]
 
+### Changed
+
+- **The TV and frame feeds example no longer has a go2rtc source:** a camera that Home Assistant serves from go2rtc is a camera entity anyway, so pick it as the camera and choose snapshots or live (MJPEG). If you chose go2rtc in a TV's form, pick a camera there instead.
+
 ## [0.31.8]
 
 ### Changed
