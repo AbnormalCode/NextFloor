@@ -7,7 +7,7 @@ All notable changes to NextFloor, newest first. Every release lists what is **Ad
 ### Added
 
 - **Plugin texture providers:** display video, canvas drawings or images on named furniture surfaces. Existing TVs expose `screen` and frames expose `picture`; custom packs can name stationary box fronts. Providers release resources when their surface or view is hidden or removed.
-- **Plugin settings per furniture item:** a texture provider can add its own fields (including free text) to the form of furniture that has its surface, and gets the values stored with the item. A setting can show its field only while another setting has a given value (`showWhen`).
+- **Plugin settings per furniture item:** a texture provider can add its own fields (including free text) to the form of furniture that has its surface, and gets the values stored with the item. A setting can show its field only while another setting has a given value (`showWhen`). Values a plugin no longer declares are dropped from an item when its form is next changed.
 - **TV and frame feeds (example plugin):** `docs/examples/nextfloor-feed-texture.js` shows a Home Assistant camera, as snapshots or live (MJPEG), on a TV screen or in a picture frame (a camera that Home Assistant serves from go2rtc works too). Pick the source per item in the editor.
 
 ## [0.31.4.6]
