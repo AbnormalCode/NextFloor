@@ -1,12 +1,10 @@
 /** Copy to /config/www/nextfloor/feed-texture.js, then add /local/nextfloor/feed-texture.js under Extensions → Plugins.
- * Shows a live picture on a TV screen or in a picture frame. Select the TV or frame in the editor and fill in the
- * "TV and frame feeds" fields of its form: pick a Source, then
- *   - go2rtc stream: the browser-reachable go2rtc address (HTTPS when HA uses HTTPS, not an RTSP URL) and the stream name
- *     (WebRTC video only, muted; reconnects with bounded backoff), or
- *   - Home Assistant camera (snapshots every few seconds, or live MJPEG): the camera entity. This uses HA's own camera proxy
- *     with the camera's access token, so NextFloor must be opened from the same address as Home Assistant.
- * A TV shows its feed only while its linked media player is on; a frame always shows it. The camera picture is fitted into a
- * 16:9 canvas (black bars). The values are stored in the plan, so never put credentials into them.
+ * Shows a Home Assistant camera on a TV screen or in a picture frame. Select the TV or frame in the editor and fill in the
+ * "TV and frame feeds" fields of its form: pick a Source (snapshots every few seconds, or the live MJPEG stream) and the camera.
+ * A camera that is backed by go2rtc or WebRTC in Home Assistant works the same way: it is still a camera entity.
+ * This uses HA's own camera proxy with the camera's access token, so NextFloor must be opened from the same address as Home
+ * Assistant. A TV shows its feed only while its linked media player is on; a frame always shows it. The camera picture is
+ * fitted into a 16:9 canvas (black bars). The values are stored in the plan, so never put credentials into them.
  * Uses the generic texture API; no external JS dependencies.
  */
 const SURFACES = ["screen", "picture"];
@@ -14,97 +12,6 @@ const OFF = ["off", "unavailable", "unknown", "standby"];
 const WIDTH = 1280, HEIGHT = 720;
 // A one-pixel GIF: assigning it to an <img> closes a running MJPEG connection.
 const BLANK = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
-
-/** go2rtc: WebSocket signalling, WebRTC video. */
-const go2rtc = ({ settings, reportError }) => {
-  const config = settings;
-  const url = new URL("api/ws", config.server.endsWith("/") ? config.server : config.server + "/");
-  if (!["http:", "https:"].includes(url.protocol)) throw new Error("go2rtc server must use HTTP or HTTPS");
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  url.searchParams.set("src", config.stream);
-  const video = document.createElement("video");
-  video.muted = true;
-  video.autoplay = true;
-  video.playsInline = true;
-  let stopped = false, retry = 0, attempts = 0, teardown = () => {};
-  const connect = () => {
-    if (stopped) return;
-    const pc = new RTCPeerConnection({ iceServers: [] });
-    let ws;
-    try { ws = new WebSocket(url); }
-    catch (error) { pc.close(); reportError(error); return; }
-    const media = new MediaStream();
-    const candidates = [];
-    let closed = false, timeout;
-    const cleanup = () => {
-      if (closed) return;
-      closed = true;
-      clearTimeout(timeout);
-      ws.onclose = ws.onerror = ws.onmessage = ws.onopen = null;
-      pc.ontrack = pc.onicecandidate = pc.onconnectionstatechange = null;
-      ws.close();
-      pc.close();
-      media.getTracks().forEach((track) => track.stop());
-      video.pause();
-      video.srcObject = null;
-    };
-    teardown = cleanup;
-    const fail = (error) => {
-      if (closed || stopped) return;
-      reportError(error);
-      cleanup();
-      retry = setTimeout(connect, Math.min(30000, 1000 * 2 ** Math.min(attempts++, 5)));
-    };
-    pc.addTransceiver("video", { direction: "recvonly" });
-    pc.ontrack = ({ track }) => {
-      if (closed) { track.stop(); return; }
-      media.addTrack(track);
-      video.srcObject = media;
-      video.play().catch(fail);
-    };
-    pc.onicecandidate = ({ candidate }) => {
-      if (!closed && candidate && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "webrtc/candidate", value: candidate.candidate }));
-    };
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "connected") { attempts = 0; clearTimeout(timeout); }
-      else if (["failed", "disconnected"].includes(pc.connectionState)) fail(new Error("go2rtc WebRTC disconnected"));
-    };
-    ws.onopen = async () => {
-      try {
-        const offer = await pc.createOffer();
-        if (closed) return;
-        await pc.setLocalDescription(offer);
-        if (!closed && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "webrtc/offer", value: pc.localDescription.sdp }));
-      } catch (error) { fail(error); }
-    };
-    // Serialize messages so candidates cannot race setRemoteDescription().
-    let messages = Promise.resolve();
-    ws.onmessage = ({ data }) => {
-      messages = messages.then(async () => {
-        if (closed) return;
-        const msg = JSON.parse(data);
-        if (msg.type === "webrtc/answer") {
-          await pc.setRemoteDescription({ type: "answer", sdp: msg.value });
-          if (closed) return;
-          for (const candidate of candidates.splice(0)) await pc.addIceCandidate(candidate);
-        } else if (msg.type === "webrtc/candidate") {
-          const candidate = { candidate: msg.value, sdpMid: "0" };
-          if (pc.remoteDescription) await pc.addIceCandidate(candidate);
-          else candidates.push(candidate);
-        } else if (msg.type === "error") throw new Error(String(msg.value));
-      }).catch(fail);
-    };
-    ws.onerror = () => fail(new Error("Cannot connect to go2rtc signalling"));
-    ws.onclose = () => fail(new Error("go2rtc signalling closed"));
-    timeout = setTimeout(() => fail(new Error("go2rtc connection timed out")), 20000);
-  };
-  connect();
-  return {
-    source: video,
-    unlit: true,
-    dispose: () => { stopped = true; clearTimeout(retry); teardown(); video.removeAttribute("src"); video.load(); },
-  };
-};
 
 /** A Home Assistant camera: snapshots on a timer or the MJPEG stream, drawn onto a canvas. */
 const camera = (ctx) => {
@@ -188,9 +95,7 @@ const plugin = {
     surfaces: SURFACES,
     settings: [
       { key: "source", type: "select", default: "none", label: { en: "Source", de: "Quelle" },
-        options: [["none", { en: "None", de: "Keine" }], ["go2rtc", { en: "go2rtc stream", de: "go2rtc-Stream" }], ["snapshot", { en: "Home Assistant camera: snapshots", de: "Home-Assistant-Kamera: Standbilder" }], ["mjpeg", { en: "Home Assistant camera: live (MJPEG)", de: "Home-Assistant-Kamera: live (MJPEG)" }]] },
-      { key: "server", type: "text", default: "", showWhen: { key: "source", value: "go2rtc" }, label: { en: "go2rtc address", de: "go2rtc-Adresse" }, placeholder: "https://go2rtc.example.net/", hint: { en: "Reachable from the browser; no passwords in it", de: "Vom Browser erreichbar; keine Passwörter darin" } },
-      { key: "stream", type: "text", default: "", showWhen: { key: "source", value: "go2rtc" }, label: { en: "Stream name", de: "Stream-Name" }, placeholder: "tv_capture" },
+        options: [["none", { en: "None", de: "Keine" }], ["snapshot", { en: "Home Assistant camera: snapshots", de: "Home-Assistant-Kamera: Standbilder" }], ["mjpeg", { en: "Home Assistant camera: live (MJPEG)", de: "Home-Assistant-Kamera: live (MJPEG)" }]] },
       { key: "camera", type: "entity", domains: ["camera"], default: "", showWhen: { key: "source", value: ["snapshot", "mjpeg"] }, label: { en: "Camera", de: "Kamera" } },
       { key: "interval", type: "number", default: 5, min: 1, max: 60, step: 1, showWhen: { key: "source", value: "snapshot" }, label: { en: "Snapshot every (s)", de: "Standbild alle (s)" } },
       { key: "fps", type: "number", default: 8, min: 1, max: 15, step: 1, showWhen: { key: "source", value: "mjpeg" }, label: { en: "Live frames per second", de: "Live-Bilder pro Sekunde" },
@@ -198,15 +103,13 @@ const plugin = {
     ],
     match: ({ hass, surface, entityId, state, settings }) => {
       if (!SURFACES.includes(surface)) return false;
-      if (settings.source === "go2rtc") { if (!settings.server || !settings.stream) return false; }
-      else if (settings.source === "snapshot" || settings.source === "mjpeg") {
-        const cam = settings.camera && hass.states[settings.camera];
-        if (!cam || cam.state === "unavailable") return false;
-      } else return false;
+      if (settings.source !== "snapshot" && settings.source !== "mjpeg") return false;
+      const cam = settings.camera && hass.states[settings.camera];
+      if (!cam || cam.state === "unavailable") return false;
       // A TV linked to a media player shows its feed only while that player is on.
       return !entityId || (!!state && !OFF.includes(state.state));
     },
-    create: (ctx) => (ctx.settings.source === "go2rtc" ? go2rtc(ctx) : camera(ctx)),
+    create: camera,
   }],
 };
 if (window.NextFloor) window.NextFloor.register(plugin);
