@@ -1,12 +1,20 @@
-// Run after npm run build. Real WebRTC peers + a go2rtc signalling double in the actual preview.
+// Run after npm run build. The camera feed example in the actual preview: a test camera answers the camera proxy with an
+// image whose colour changes, the plugin loads from a /local URL like in Home Assistant, and the TV in the preview shows it.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFileSync, mkdirSync } from 'node:fs';
 import { resolve, extname } from 'node:path';
 import puppeteer from 'puppeteer-core';
 const root = resolve(import.meta.dirname, '..');
+let phase = 0, snapshots = 0;
 const server = createServer((req, res) => {
-  const path = resolve(root, '.' + new URL(req.url, 'http://localhost').pathname);
+  const url = new URL(req.url, 'http://localhost');
+  if (url.pathname === '/api/camera_proxy/camera.test') {
+    snapshots++;
+    const colour = phase ? '#d62d77' : '#12d9b0';
+    return res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'no-store' }).end(`<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="${colour}"/></svg>`);
+  }
+  const path = url.pathname === '/local/nextfloor/feed-texture.js' ? resolve(root, 'docs/examples/nextfloor-feed-texture.js') : resolve(root, '.' + url.pathname);
   if (!path.startsWith(root + '/')) return res.writeHead(403).end();
   try { res.setHeader('Content-Type', ({'.html':'text/html','.js':'text/javascript','.json':'application/json'})[extname(path)] ?? 'application/octet-stream'); res.end(readFileSync(path)); }
   catch { res.writeHead(404).end(); }
@@ -20,52 +28,42 @@ try {
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto(`http://127.0.0.1:${server.address().port}/preview/index.html?lang=en`, {waitUntil:'networkidle0'});
   await page.waitForFunction(() => document.querySelector('nextfloor-panel')?.shadowRoot.querySelector('nf-view3d')?.viewer?.textureLayer);
+  // The plugin comes from the plugin list (as under Extensions), the camera and the TV's settings from the plan.
   await page.evaluate(() => {
-    window.textureTest = {opened:0,closed:0,phase:0};
-    window.WebSocket = class {
-      static OPEN = 1;
-      readyState = 1;
-      constructor(url) {
-        if (new URL(url).searchParams.get('src') !== 'test_capture') throw new Error('wrong stream');
-        window.textureTest.opened++;
-        this.pc = new RTCPeerConnection({iceServers:[]}); this.pending = [];
-        const c = document.createElement('canvas'); c.width=640; c.height=360;
-        const g=c.getContext('2d');
-        const draw=()=>{ g.fillStyle=window.textureTest.phase?'#d62d77':'#12d9b0';g.fillRect(0,0,640,360);g.fillStyle='#102030';g.font='bold 54px sans-serif';g.fillText('LIVE VIDEO',100,155);g.font='28px sans-serif';g.fillText(`WebRTC frame ${Math.floor(performance.now()/33)}`,130,220); };
-        draw();this.timer=setInterval(draw,33);this.media=c.captureStream(30);
-        this.media.getTracks().forEach(t=>this.pc.addTrack(t,this.media));
-        this.pc.onicecandidate=({candidate})=>{if(candidate)this.emit({type:'webrtc/candidate',value:candidate.candidate});};
-        queueMicrotask(()=>this.onopen?.());
-      }
-      emit(msg){this.onmessage?.({data:JSON.stringify(msg)});}
-      send(data){
-        const msg=JSON.parse(data);
-        if(msg.type==='webrtc/offer'){
-          (async()=>{await this.pc.setRemoteDescription({type:'offer',sdp:msg.value});for(const c of this.pending.splice(0))await this.pc.addIceCandidate(c);await this.pc.setLocalDescription(await this.pc.createAnswer());this.emit({type:'webrtc/answer',value:this.pc.localDescription.sdp});})().catch(e=>{throw e;});
-        }else if(msg.type==='webrtc/candidate'){
-          const c={candidate:msg.value,sdpMid:'0'};if(this.pc.remoteDescription)this.pc.addIceCandidate(c);else this.pending.push(c);
-        }
-      }
-      close(){if(this.readyState===3)return;this.readyState=3;window.textureTest.closed++;clearInterval(this.timer);this.pc.onicecandidate=null;this.pc.close();this.media.getTracks().forEach(t=>t.stop());}
-    };
+    window.nfDemoSet('camera.test', 'idle', { friendly_name: 'Test camera', entity_picture: '/api/camera_proxy/camera.test?token=t' });
+    const panel = document.querySelector('nextfloor-panel');
+    const b = structuredClone(panel.data.building);
+    b.settings.plugins = [{ url: '/local/nextfloor/feed-texture.js', enabled: true }];
+    const tv = b.floors.flatMap(f => f.furniture).find(f => f.type === 'tv_board');
+    tv.entity = 'media_player.fernseher'; // linked, so the feed follows the player's state
+    tv.plugin = { 'feed-texture': { source: 'snapshot', camera: 'camera.test', interval: 1 } };
+    panel.data.edit(b);
   });
-  // The example reads its address and stream from the furniture's settings; the demo plan stores none, so the defaults carry the test values.
-  const example=readFileSync(resolve(root,'docs/examples/nextfloor-feed-texture.js'),'utf8').replace('key: "source", type: "select", default: "none"','key: "source", type: "select", default: "go2rtc"').replace('key: "server", type: "text", default: ""','key: "server", type: "text", default: "http://localhost/"').replace('key: "stream", type: "text", default: ""','key: "stream", type: "text", default: "test_capture"');
-  await page.addScriptTag({content:example});
-  await page.waitForFunction(()=>[...document.querySelector('nextfloor-panel').shadowRoot.querySelector('nf-view3d').viewer.textureLayer.views.values()].some(v=>v.source.source.readyState>=2&&v.source.source.videoWidth===640),{timeout:20000});
-  const result=await page.evaluate(async()=>{
-    const viewer=document.querySelector('nextfloor-panel').shadowRoot.querySelector('nf-view3d').viewer;
-    const view=[...viewer.textureLayer.views.values()][0],video=view.source.source;
-    const pixel=()=>{const c=document.createElement('canvas');c.width=c.height=1;const g=c.getContext('2d');g.drawImage(video,0,0,1,1);return [...g.getImageData(0,0,1,1).data];};
-    const first=pixel(),before=video.getVideoPlaybackQuality().totalVideoFrames;window.textureTest.phase=1;
-    await new Promise(done=>setTimeout(done,700));
-    return {first,second:pixel(),frames:video.getVideoPlaybackQuality().totalVideoFrames-before,videoTexture:view.texture.isVideoTexture,errors:window.__nextfloorPluginStore.plugins.get('feed-texture').status.errors};
+  const views = () => page.evaluate(() => [...document.querySelector('nextfloor-panel').shadowRoot.querySelector('nf-view3d').viewer.textureLayer.views.values()].length);
+  const centre = () => page.evaluate(() => {
+    const view = [...document.querySelector('nextfloor-panel').shadowRoot.querySelector('nf-view3d').viewer.textureLayer.views.values()][0];
+    const c = view.source.source, g = c.getContext('2d');
+    return [...g.getImageData(c.width / 2, c.height / 2, 1, 1).data];
   });
-  assert.ok(result.videoTexture);assert.ok(result.frames>3,JSON.stringify(result));assert.notDeepEqual(result.first,result.second);assert.deepEqual(result.errors,[]);
+  await page.waitForFunction(() => document.querySelector('nextfloor-panel').shadowRoot.querySelector('nf-view3d').viewer.textureLayer.views.size > 0, { timeout: 20000 });
+  // the first snapshot is drawn onto the canvas
+  await page.waitForFunction(() => { const v = [...document.querySelector('nextfloor-panel').shadowRoot.querySelector('nf-view3d').viewer.textureLayer.views.values()][0]; const c = v.source.source; return c.getContext('2d').getImageData(c.width / 2, c.height / 2, 1, 1).data[1] > 150; }, { timeout: 10000 });
+  const first = await centre();
+  phase = 1; // the camera now shows something else; the next snapshot (every second) must follow
+  await page.waitForFunction(() => { const v = [...document.querySelector('nextfloor-panel').shadowRoot.querySelector('nf-view3d').viewer.textureLayer.views.values()][0]; const c = v.source.source; return c.getContext('2d').getImageData(c.width / 2, c.height / 2, 1, 1).data[0] > 150; }, { timeout: 10000 });
+  const second = await centre();
+  assert.notDeepEqual(first, second);
+  const status = await page.evaluate(() => window.__nextfloorPluginStore.plugins.get('feed-texture').status);
+  assert.deepEqual(status.errors, []);
   mkdirSync(resolve(root,'preview/screenshots'),{recursive:true});
-  await page.screenshot({path:resolve(root,'preview/screenshots/plugin-texture-video.png')});
-  await page.evaluate(()=>window.nfDemoSet('media_player.fernseher','off'));
-  await page.waitForFunction(()=>window.textureTest.opened===window.textureTest.closed);
-  assert.deepEqual(errors,[]);
-  console.log('PASS: WebRTC frames update on preview TV; signalling, video texture and TV-off cleanup',result);
+  await page.screenshot({path:resolve(root,'preview/screenshots/plugin-texture-camera.png')});
+  // Switching the TV off releases the instance and stops asking the camera.
+  await page.evaluate(() => window.nfDemoSet('media_player.fernseher','off'));
+  await page.waitForFunction(() => document.querySelector('nextfloor-panel').shadowRoot.querySelector('nf-view3d').viewer.textureLayer.views.size === 0, { timeout: 10000 });
+  const before = snapshots;
+  await new Promise(done => setTimeout(done, 2500));
+  assert.equal(snapshots, before, 'no snapshots are requested while the TV is off');
+  assert.equal(await views(), 0);
+  assert.deepEqual(errors, []);
+  console.log('PASS: camera snapshots update on the preview TV, the plugin loads from /local, TV-off cleanup', { first, second, snapshots });
 }finally{await browser?.close();await new Promise(done=>server.close(done));}
