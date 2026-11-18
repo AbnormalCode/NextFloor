@@ -308,3 +308,10 @@ test("showWhen hides a field until another setting of the plugin has the value",
   assert.deepEqual([one, many].map((s) => settingVisible(s, { source: "mjpeg" })), [false, true]);
   assert.equal(settingVisible(one, {}), false);
 });
+
+test("knownSettings drops the keys a plugin no longer declares", async () => {
+  const { knownSettings } = await import("./registry.ts");
+  const declared = [{ key: "source", type: "text" as const, label: "S", default: "" }, { key: "camera", type: "text" as const, label: "C", default: "" }];
+  assert.deepEqual(knownSettings(declared, { source: "snapshot", camera: "camera.door", server: "https://x/", stream: "s" }), { source: "snapshot", camera: "camera.door" });
+  assert.deepEqual(knownSettings(declared, undefined), {});
+});

@@ -227,6 +227,12 @@ export function settingsWithDefaults(settings: readonly DeviceSetting[] | undefi
   return out;
 }
 
+/** The stored values of a plugin without the keys its settings no longer declare, so a removed field leaves nothing behind in the plan. */
+export function knownSettings(settings: readonly DeviceSetting[], stored: Record<string, SettingValue> | undefined): Record<string, SettingValue> {
+  const keys = new Set(settings.map((s) => s.key));
+  return Object.fromEntries(Object.entries(stored ?? {}).filter(([key]) => keys.has(key)));
+}
+
 /** Whether a setting's field is shown: always, or while the setting named in `showWhen` has one of its values. */
 export function settingVisible(setting: DeviceSetting, values: Record<string, SettingValue>): boolean {
   const when = setting.showWhen;

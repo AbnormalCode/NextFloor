@@ -94,7 +94,7 @@ const plugin = {
   textures: [{
     surfaces: SURFACES,
     settings: [
-      { key: "source", type: "select", default: "none", label: { en: "Source", de: "Quelle" },
+      { key: "source", type: "select", default: "none", label: { en: "Picture source", de: "Bildquelle" },
         options: [["none", { en: "None", de: "Keine" }], ["snapshot", { en: "Home Assistant camera: snapshots", de: "Home-Assistant-Kamera: Standbilder" }], ["mjpeg", { en: "Home Assistant camera: live (MJPEG)", de: "Home-Assistant-Kamera: live (MJPEG)" }]] },
       { key: "camera", type: "entity", domains: ["camera"], default: "", showWhen: { key: "source", value: ["snapshot", "mjpeg"] }, label: { en: "Camera", de: "Kamera" } },
       { key: "interval", type: "number", default: 5, min: 1, max: 60, step: 1, showWhen: { key: "source", value: "snapshot" }, label: { en: "Snapshot every (s)", de: "Standbild alle (s)" } },

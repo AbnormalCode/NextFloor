@@ -7,6 +7,7 @@ All notable changes to NextFloor, newest first. Every release lists what is **Ad
 ### Changed
 
 - **The TV and frame feeds example no longer has a go2rtc source:** a camera that Home Assistant serves from go2rtc is a camera entity anyway, so pick it as the camera and choose snapshots or live (MJPEG). If you chose go2rtc in a TV's form, pick a camera there instead.
+- **Leftover plugin values are cleaned up:** when you change a plugin's field in an item's form, values the plugin no longer has (the old go2rtc address and stream, say) are dropped from the plan. The source field is now called *Picture source*.
 
 ## [0.31.8]
 
